@@ -1,0 +1,875 @@
+<title>Corridor Bird's-Eye Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* ---- tokens: bare :root is the light "survey chart" theme ---- */
+  :root {
+    --ground: #EEF3F2;
+    --panel:  #FFFFFF;
+    --line:   #D3DFDE;
+    --text:   #16262B;
+    --dim:    #5B7078;
+    --crab:   #C4501F;
+    --cyan:   #1D8A8A;
+    --good:   #2F8F5B;
+    --warn:   #A97812;
+    --blocked:#B8362F;
+    --unknown:#DCE4E3;
+    --panel-glass: rgba(255, 255, 255, 0.92);
+    --shadow: 0 12px 32px rgba(22, 38, 43, 0.14);
+    --sans: "IBM Plex Sans", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0A1317;
+      --panel:  #111D22;
+      --line:   #1C2C33;
+      --text:   #DCE7EA;
+      --dim:    #7C929A;
+      --crab:   #F0703C;
+      --cyan:   #4FC4C4;
+      --good:   #64C08C;
+      --warn:   #E6B23C;
+      --blocked:#D9534F;
+      --unknown:#16242A;
+      --panel-glass: rgba(17, 29, 34, 0.9);
+      --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0A1317;
+    --panel:  #111D22;
+    --line:   #1C2C33;
+    --text:   #DCE7EA;
+    --dim:    #7C929A;
+    --crab:   #F0703C;
+    --cyan:   #4FC4C4;
+    --good:   #64C08C;
+    --warn:   #E6B23C;
+    --blocked:#D9534F;
+    --unknown:#16242A;
+    --panel-glass: rgba(17, 29, 34, 0.9);
+    --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.4;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  .app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+
+  .bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px 28px;
+    flex-wrap: wrap;
+    padding-block: 10px;
+    padding-inline: 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .brand { min-width: 0; flex: 1 1 260px; }
+  .brand h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    line-height: 1.2;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  }
+  .brand h1 .eyebrow { font-weight: 500; }
+  .thesis { margin: 2px 0 0; color: var(--dim); font-size: 12.5px; text-wrap: balance; }
+  .thesis em { font-style: normal; color: var(--text); }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0; padding: 0; }
+  .stats div { display: flex; flex-direction: column; gap: 1px; }
+  .stats dt { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+  .stats dd { margin: 0; font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stats dd .unit { color: var(--dim); font-size: 11px; margin-left: 2px; }
+  .stats dd.flag { color: var(--cyan); }
+
+  .stage { position: relative; flex: 1 1 auto; min-height: 0; }
+  canvas#map {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: grab;
+    outline-offset: -3px;
+  }
+  canvas#map.dragging { cursor: grabbing; }
+
+  .hint {
+    position: absolute; top: 12px; right: 16px;
+    display: flex; gap: 14px;
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    pointer-events: none;
+    letter-spacing: 0.02em;
+  }
+  .hint b { font-weight: 500; color: var(--text); }
+
+  /* ---- readout + scale, bottom right of the map ---- */
+  .readout {
+    position: absolute; right: 16px; bottom: 16px;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+    pointer-events: none;
+    font-family: var(--mono); font-size: 11.5px;
+  }
+  .readout .box {
+    background: var(--panel-glass);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border: 1px solid var(--line); border-radius: 5px;
+    padding: 7px 10px;
+    display: flex; flex-direction: column; gap: 3px; align-items: flex-end;
+    min-width: 176px;
+  }
+  .readout .coord { font-variant-numeric: tabular-nums; }
+  .readout .cellstate { display: flex; align-items: center; gap: 6px; color: var(--dim); }
+  .readout .swatch { width: 9px; height: 9px; border-radius: 2px; background: var(--dim); }
+  .scale { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .scale .rule {
+    height: 6px; border: 1px solid var(--text); border-top: 0;
+    background: var(--panel-glass);
+  }
+  .scale .cap { color: var(--dim); }
+
+  /* ---- floating control panel ---- */
+  .panel {
+    position: absolute; left: 16px; top: 16px; bottom: 16px;
+    width: 328px; max-width: calc(100% - 32px);
+    background: var(--panel);
+    background: var(--panel-glass);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .panel-head {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px 10px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .panel[data-collapsed="true"] { bottom: auto; }
+  .panel[data-collapsed="true"] .panel-head { border-bottom-color: transparent; }
+  .panel-head .zoomout { margin-left: auto; }
+  .iconbtn {
+    width: 26px; height: 26px; border-radius: 4px;
+    border: 1px solid var(--line); background: transparent; color: var(--dim);
+    display: grid; place-items: center; cursor: pointer; padding: 0;
+  }
+  .iconbtn:hover { color: var(--text); }
+  .iconbtn svg { transition: transform 200ms; }
+  .panel[data-collapsed="true"] #collapse svg { transform: rotate(180deg); }
+
+  .panel-body {
+    padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 14px;
+    overflow-y: auto; min-height: 0;
+  }
+
+  .seg { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .seg legend { padding: 0; margin-bottom: 6px; }
+  .seg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .seg button {
+    font: inherit; color: var(--text);
+    background: transparent; border: 1px solid var(--line); border-radius: 4px;
+    padding: 8px 10px; text-align: left; cursor: pointer;
+    display: flex; flex-direction: column; gap: 2px;
+    transition: border-color 120ms, background-color 120ms;
+  }
+  .seg button:hover { border-color: var(--dim); }
+  .seg button .t { font-weight: 500; font-size: 13px; }
+  .seg button .n { font-size: 11px; color: var(--dim); font-family: var(--mono); }
+  .seg button[aria-checked="true"] {
+    border-color: var(--crab);
+    box-shadow: inset 0 0 0 1px var(--crab);
+  }
+  .seg button[aria-checked="true"] .t { color: var(--crab); }
+  .desc { margin: 0; font-size: 12px; color: var(--dim); }
+  .desc strong { color: var(--text); font-weight: 500; }
+
+  .switches { display: flex; flex-direction: column; gap: 9px; }
+  .switch { position: relative; display: inline-flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; user-select: none; }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+  .switch .track {
+    width: 32px; height: 18px; border-radius: 9px; position: relative; flex: 0 0 auto;
+    background: var(--line); border: 1px solid var(--line); transition: background-color 150ms;
+  }
+  .switch .track::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--dim); transition: transform 150ms, background-color 150ms;
+  }
+  .switch input:checked + .track { background: var(--cyan); border-color: var(--cyan); }
+  .switch input:checked + .track::after { transform: translateX(14px); background: var(--panel); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  /* ---- legend + measured figures ---- */
+  .legend { display: flex; flex-direction: column; gap: 5px; margin: 0; }
+  .legend div { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .legend .key { width: 12px; height: 12px; border-radius: 2px; flex: 0 0 auto; border: 1px solid transparent; }
+  .legend .what { color: var(--dim); }
+  .legend .what b { color: var(--text); font-weight: 500; }
+
+  .figs { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 12px; }
+  .figs dt { color: var(--dim); }
+  .figs dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+  /* ---- extracted structure list ---- */
+  .found { display: flex; flex-direction: column; gap: 5px; }
+  .found button {
+    font: inherit; text-align: left; cursor: pointer;
+    background: transparent; border: 1px solid var(--line); border-left-width: 3px;
+    border-radius: 4px; padding: 7px 9px; color: var(--text);
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .found button:hover { border-color: var(--dim); }
+  .found button .hd { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .found button .nm { font-size: 12.5px; font-weight: 500; }
+  .found button .mg { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .found button .ev { font-size: 11px; color: var(--dim); line-height: 1.35; }
+  .found button.wall { border-left-color: var(--cyan); }
+  .found button.wall .mg { color: var(--cyan); }
+  .found button.opening { border-left-color: var(--good); }
+  .found button.opening .mg { color: var(--good); }
+  .found button.region { border-left-color: var(--crab); }
+  .found button.region .mg { color: var(--crab); }
+  .more {
+    font: inherit; font-size: 12px; color: var(--dim);
+    background: transparent; border: 0; padding: 2px 0; cursor: pointer; text-align: left;
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  .more:hover { color: var(--text); }
+
+  .caveat {
+    margin: 0; padding-top: 12px; border-top: 1px solid var(--line);
+    font-size: 11.5px; color: var(--dim); line-height: 1.45;
+  }
+  .caveat .eyebrow { display: block; margin-bottom: 3px; color: var(--cyan); }
+  .caveat + .caveat { border-top: 0; padding-top: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .iconbtn svg, .seg button, .switch .track, .switch .track::after { transition: none; }
+  }
+
+  @media (max-width: 860px) {
+    .stats div.opt { display: none; }
+    .hint { display: none; }
+    .panel {
+      left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none;
+      border-radius: 8px 8px 0 0; border-bottom: 0;
+      max-height: 52%;
+    }
+    .panel-body { padding-inline: 16px; }
+    .panel-head { padding-inline: 16px 12px; }
+    .readout { bottom: auto; top: 12px; right: 12px; }
+  }
+  @media (max-width: 420px) {
+    .seg-row { grid-template-columns: 1fr; }
+    .readout .box { min-width: 0; }
+  }
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <h1><span class="eyebrow">Crab Team N</span> Corridor Bird's-Eye Map</h1>
+      <p class="thesis"><em>The 3D world, flattened into something a robot can plan on.</em> 2.03 M fused points collapsed onto the fitted floor plane, then rasterised to a three-state occupancy grid.</p>
+    </div>
+    <dl class="stats">
+      <div><dt>cell size</dt><dd id="s-cell">—</dd></div>
+      <div><dt>corridor width</dt><dd id="s-width">—</dd></div>
+      <div><dt>walked</dt><dd id="s-len">—</dd></div>
+      <div class="opt"><dt>walls · openings</dt><dd id="s-struct">—</dd></div>
+      <div><dt>scale check</dt><dd class="flag" id="s-scale">—</dd></div>
+    </dl>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="map" tabindex="0" aria-label="Bird's-eye occupancy map of the corridor. Drag to pan, scroll to zoom, arrow keys pan, plus and minus zoom, R resets the view."></canvas>
+
+    <div class="hint" aria-hidden="true">
+      <span><b>drag</b> pan</span>
+      <span><b>wheel</b> zoom</span>
+      <span><b>R</b> reset</span>
+    </div>
+
+    <div class="readout" aria-live="off">
+      <div class="box">
+        <span class="coord" id="r-coord">x —  y —</span>
+        <span class="cellstate"><span class="swatch" id="r-swatch"></span><span id="r-state">move over the map</span></span>
+      </div>
+      <div class="scale">
+        <span class="cap num" id="scale-cap">1 m</span>
+        <div class="rule" id="scale-rule" style="width:80px"></div>
+      </div>
+    </div>
+
+    <aside class="panel" id="panel" data-collapsed="false" aria-label="Map controls">
+      <div class="panel-head">
+        <span class="eyebrow">Bird's-eye</span>
+        <button class="iconbtn zoomout" id="reset" type="button" aria-label="Reset the view" title="Reset the view (R)">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 6a4.5 4.5 0 1 1 1.6 3.4"/><path d="M1.2 3v3h3"/></svg>
+        </button>
+        <button class="iconbtn" id="collapse" type="button" aria-expanded="true" aria-controls="panel-body" aria-label="Collapse controls">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4.5l4 4 4-4"/></svg>
+        </button>
+      </div>
+
+      <div class="panel-body" id="panel-body">
+        <fieldset class="seg">
+          <legend class="eyebrow">Layer</legend>
+          <div class="seg-row" role="radiogroup" aria-label="Map layer" id="layers">
+            <button type="button" role="radio" aria-checked="true" data-layer="occ">
+              <span class="t">Occupancy</span>
+              <span class="n">free · blocked · unknown</span>
+            </button>
+            <button type="button" role="radio" aria-checked="false" data-layer="height">
+              <span class="t">Height</span>
+              <span class="n">tallest point per cell</span>
+            </button>
+            <button type="button" role="radio" aria-checked="false" data-layer="colour">
+              <span class="t">Colour</span>
+              <span class="n">mean point colour</span>
+            </button>
+            <button type="button" role="radio" aria-checked="false" data-layer="struct">
+              <span class="t">Structure</span>
+              <span class="n">fitted walls only</span>
+            </button>
+          </div>
+        </fieldset>
+        <p class="desc" id="layer-desc"></p>
+
+        <div class="switches">
+          <label class="switch"><input type="checkbox" id="t-path" checked><span class="track"></span><span>Camera path (124 poses)</span></label>
+          <label class="switch"><input type="checkbox" id="t-struct" checked><span class="track"></span><span>Extracted walls and openings</span></label>
+          <label class="switch"><input type="checkbox" id="t-labels" checked><span class="track"></span><span>Labels</span></label>
+          <label class="switch"><input type="checkbox" id="t-unknown" checked><span class="track"></span><span>Shade unobserved cells</span></label>
+        </div>
+
+        <div>
+          <p class="eyebrow" style="margin:0 0 6px">Cell states</p>
+          <div class="legend" id="legend"></div>
+        </div>
+
+        <div>
+          <p class="eyebrow" style="margin:0 0 6px">Measured</p>
+          <dl class="figs" id="figs"></dl>
+        </div>
+
+        <div>
+          <p class="eyebrow" style="margin:0 0 6px">Found in the grid <span id="found-count"></span></p>
+          <div class="found" id="found"></div>
+          <button class="more" id="found-more" type="button" hidden></button>
+        </div>
+
+        <p class="caveat">
+          <span class="eyebrow">What this map gets wrong</span>
+          The walk went straight down the corridor, so depth ahead of the camera is the weakest
+          thing in the reconstruction. Past <span class="num">x ≈ 4 m</span> the floor fans out into
+          radial streaks and the walls there are extrapolation, not measurement. The recovered path
+          also bows <span class="num" id="cav-bow">—</span> off its own chord while the heading stays
+          fixed, so the corridor is drawn with a bend it almost certainly does not have. Closed doors
+          sit flush with the wall and are occupied cells like any other: this map cannot see them.
+        </p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script src="birdseye.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var D = window.BIRDSEYE;
+  var G = D.grid, M = D.metrics, CELL = G.cell;
+  var UNKNOWN = 0, FREE = 1, OCCUPIED = 2;
+
+  // ---- data -----------------------------------------------------------
+  // The grid ships as base64 inside this page's own sibling script, so
+  // there is nothing to fetch and nothing to decode but bytes.
+  function bytes(b64) {
+    var s = atob(b64), a = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
+    return a;
+  }
+  var OCC = bytes(D.layers.occ);
+  var HGT = bytes(D.layers.height);
+  var RGB = bytes(D.layers.colour);
+
+  function css(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function rgbOf(hex) {
+    var h = hex.replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var v = parseInt(h, 16);
+    return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+  }
+  function mix(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+
+  // ---- layer bitmaps --------------------------------------------------
+  // One offscreen canvas per layer, drawn top-row-first so the map reads
+  // with +y up the way a plan does. Rebuilt whenever the theme changes,
+  // because every colour in them comes from the same tokens as the panel.
+  var sheets = {};
+  function buildSheets() {
+    var ink = {
+      free: rgbOf(css("--good")), occ: rgbOf(css("--crab")),
+      unknown: rgbOf(css("--unknown")), ground: rgbOf(css("--ground")),
+      low: rgbOf(css("--cyan")), mid: rgbOf(css("--warn")), high: rgbOf(css("--blocked")),
+      dim: rgbOf(css("--dim"))
+    };
+    ["occ", "height", "colour"].forEach(function (name) {
+      var c = document.createElement("canvas");
+      c.width = G.w; c.height = G.h;
+      var im = c.getContext("2d").createImageData(G.w, G.h);
+      for (var j = 0; j < G.h; j++) {
+        for (var i = 0; i < G.w; i++) {
+          var src = j * G.w + i;
+          var dst = ((G.h - 1 - j) * G.w + i) * 4;   // flip: +y up
+          var state = OCC[src], col = null, alpha = 255;
+          if (name === "occ") {
+            if (state === OCCUPIED) col = ink.occ;
+            else if (state === FREE) col = mix(ink.ground, ink.free, 0.42);
+            else { col = ink.unknown; alpha = 255; }
+          } else if (name === "height") {
+            if (state === OCCUPIED) {
+              var t = HGT[src] / 255 * G.height_scale / 1.8;
+              col = t < 0.5 ? mix(ink.low, ink.mid, t / 0.5) : mix(ink.mid, ink.high, Math.min(1, (t - 0.5) / 0.5));
+            } else if (state === FREE) col = mix(ink.ground, ink.dim, 0.22);
+            else { col = ink.unknown; }
+          } else {
+            if (state === UNKNOWN) col = ink.unknown;
+            else col = [RGB[src * 3], RGB[src * 3 + 1], RGB[src * 3 + 2]];
+          }
+          im.data[dst] = col[0]; im.data[dst + 1] = col[1];
+          im.data[dst + 2] = col[2]; im.data[dst + 3] = alpha;
+        }
+      }
+      c.getContext("2d").putImageData(im, 0, 0);
+      sheets[name] = c;
+    });
+
+    // The unknown mask rides on its own sheet so it can be switched off
+    // without rebuilding the layer underneath it.
+    var u = document.createElement("canvas");
+    u.width = G.w; u.height = G.h;
+    var ui = u.getContext("2d").createImageData(G.w, G.h);
+    for (var k = 0; k < G.w * G.h; k++) {
+      var jj = Math.floor(k / G.w), ii = k % G.w;
+      var d2 = ((G.h - 1 - jj) * G.w + ii) * 4;
+      ui.data[d2] = ink.unknown[0]; ui.data[d2 + 1] = ink.unknown[1];
+      ui.data[d2 + 2] = ink.unknown[2];
+      ui.data[d2 + 3] = OCC[k] === UNKNOWN ? 255 : 0;
+    }
+    u.getContext("2d").putImageData(ui, 0, 0);
+    sheets.unknownMask = u;
+  }
+
+  // ---- view -----------------------------------------------------------
+  var cv = document.getElementById("map");
+  var ctx = cv.getContext("2d");
+  var view = { cx: 0, cy: 0, s: 60 };          // s = pixels per metre
+  var dpr = 1, cw = 0, ch = 0;
+
+  function fit() {
+    var pad = 48;
+    var lw = G.w * CELL, lh = G.h * CELL;
+    view.s = Math.min((cw / dpr - pad * 2) / lw, (ch / dpr - pad * 2) / lh);
+    view.cx = G.x0 + lw / 2;
+    view.cy = G.y0 + lh / 2;
+  }
+  function sx(x) { return (x - view.cx) * view.s + cw / dpr / 2; }
+  function sy(y) { return -(y - view.cy) * view.s + ch / dpr / 2; }
+  function wx(px) { return (px - cw / dpr / 2) / view.s + view.cx; }
+  function wy(py) { return -(py - ch / dpr / 2) / view.s + view.cy; }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var r = cv.getBoundingClientRect();
+    cw = Math.round(r.width * dpr); ch = Math.round(r.height * dpr);
+    cv.width = cw; cv.height = ch;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  var opt = { layer: "occ", path: true, struct: true, labels: true, unknown: true };
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw / dpr, ch / dpr);
+    ctx.fillStyle = css("--ground");
+    ctx.fillRect(0, 0, cw / dpr, ch / dpr);
+
+    var x0 = sx(G.x0), yTop = sy(G.y0 + G.h * CELL);
+    var w = G.w * CELL * view.s, h = G.h * CELL * view.s;
+
+    ctx.imageSmoothingEnabled = view.s < 40;
+    if (opt.layer === "struct") {
+      ctx.globalAlpha = 0.28;
+      ctx.drawImage(sheets.occ, x0, yTop, w, h);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.drawImage(sheets[opt.layer], x0, yTop, w, h);
+    }
+    if (!opt.unknown && opt.layer !== "struct") {
+      ctx.save();
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.drawImage(sheets.unknownMask, x0, yTop, w, h);
+      ctx.restore();
+    }
+
+    if (opt.path) drawPath();
+    if (opt.struct) drawStructure();
+    drawScale();
+  }
+
+  function drawPath() {
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = css("--warn");
+    ctx.beginPath();
+    D.path.forEach(function (p, i) {
+      var X = sx(p[0]), Y = sy(p[1]);
+      if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+    });
+    ctx.stroke();
+
+    // Each pose is one place a person provably stood. At close zoom the
+    // individual stations are worth seeing; far out they would be mush.
+    if (view.s > 55) {
+      ctx.fillStyle = css("--warn");
+      D.path.forEach(function (p) {
+        ctx.beginPath();
+        ctx.arc(sx(p[0]), sy(p[1]), 1.6, 0, 6.2832);
+        ctx.fill();
+      });
+    }
+    var s = D.path[0], e = D.path[D.path.length - 1];
+    ctx.fillStyle = css("--warn");
+    ctx.beginPath(); ctx.arc(sx(s[0]), sy(s[1]), 4, 0, 6.2832); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx(e[0]), sy(e[1]), 4, 0, 6.2832); ctx.fill();
+    if (opt.labels) {
+      label("start", sx(s[0]), sy(s[1]) - 10, css("--warn"), "center");
+      label("end of walk", sx(e[0]), sy(e[1]) - 10, css("--warn"), "center");
+    }
+  }
+
+  function drawStructure() {
+    D.walls.forEach(function (wl, i) {
+      // A wall the operator only ever saw from metres away is drawn
+      // thinner and fainter: same geometry, honestly weaker evidence.
+      var far = wl.view_dist > 1.5;
+      ctx.strokeStyle = css("--cyan");
+      ctx.globalAlpha = far ? 0.45 : 1;
+      ctx.lineWidth = far ? 1.4 : 2.4;
+      ctx.setLineDash(far ? [5, 4] : []);
+      ctx.beginPath();
+      ctx.moveTo(sx(wl.a[0]), sy(wl.a[1]));
+      ctx.lineTo(sx(wl.b[0]), sy(wl.b[1]));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      if (opt.labels && wl.length > 2.4) {
+        label("W" + (i + 1) + " · " + wl.length.toFixed(1) + " m",
+              (sx(wl.a[0]) + sx(wl.b[0])) / 2, (sy(wl.a[1]) + sy(wl.b[1])) / 2 - 7,
+              css("--cyan"), "center");
+      }
+    });
+
+    D.openings.forEach(function (o) {
+      ctx.strokeStyle = css("--good");
+      ctx.lineWidth = 4;
+      ctx.lineCap = "butt";
+      ctx.beginPath();
+      ctx.moveTo(sx(o.a[0]), sy(o.a[1]));
+      ctx.lineTo(sx(o.b[0]), sy(o.b[1]));
+      ctx.stroke();
+      if (opt.labels) {
+        label(o.width.toFixed(2) + " m opening", sx(o.centre[0]), sy(o.centre[1]) - 9,
+              css("--good"), "center");
+      }
+    });
+
+    D.regions.forEach(function (r) {
+      var X = sx(r.centre[0]), Y = sy(r.centre[1]);
+      var rad = Math.max(6, Math.max(r.extent[0], r.extent[1]) / 2 * view.s);
+      ctx.strokeStyle = css("--crab");
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(X, Y, rad, 0, 6.2832); ctx.stroke();
+      if (opt.labels) label(r.label, X, Y - rad - 6, css("--crab"), "center");
+    });
+  }
+
+  function label(text, x, y, colour, align) {
+    ctx.font = "500 11px " + css("--mono");
+    ctx.textAlign = align || "left";
+    ctx.textBaseline = "alphabetic";
+    var pad = 3, wdt = ctx.measureText(text).width;
+    var left = align === "center" ? x - wdt / 2 : x;
+    ctx.fillStyle = css("--panel-glass");
+    ctx.fillRect(left - pad, y - 10, wdt + pad * 2, 13);
+    ctx.fillStyle = colour;
+    ctx.fillText(text, align === "center" ? x : left, y);
+  }
+
+  function drawScale() {
+    // Pick the longest 1-2-5 run of metres that still fits in 170 px.
+    var nice = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20];
+    var m = nice[0];
+    for (var i = 0; i < nice.length; i++) if (nice[i] * view.s <= 170) m = nice[i];
+    var el = document.getElementById("scale-rule");
+    el.style.width = Math.round(m * view.s) + "px";
+    document.getElementById("scale-cap").textContent =
+      m < 1 ? (m * 100) + " cm" : m + " m";
+  }
+
+  // ---- interaction ----------------------------------------------------
+  var drag = null;
+  cv.addEventListener("pointerdown", function (e) {
+    drag = { x: e.clientX, y: e.clientY };
+    cv.classList.add("dragging");
+    cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener("pointermove", function (e) {
+    var r = cv.getBoundingClientRect();
+    if (drag) {
+      view.cx -= (e.clientX - drag.x) / view.s;
+      view.cy += (e.clientY - drag.y) / view.s;
+      drag.x = e.clientX; drag.y = e.clientY;
+      draw();
+    }
+    readout(wx(e.clientX - r.left), wy(e.clientY - r.top));
+  });
+  function endDrag(e) {
+    drag = null;
+    cv.classList.remove("dragging");
+    if (e && e.pointerId !== undefined && cv.hasPointerCapture(e.pointerId)) {
+      cv.releasePointerCapture(e.pointerId);
+    }
+  }
+  cv.addEventListener("pointerup", endDrag);
+  cv.addEventListener("pointercancel", endDrag);
+  cv.addEventListener("pointerleave", function () {
+    document.getElementById("r-coord").textContent = "x —  y —";
+    document.getElementById("r-state").textContent = "move over the map";
+    document.getElementById("r-swatch").style.background = css("--dim");
+  });
+
+  cv.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var r = cv.getBoundingClientRect();
+    var px = e.clientX - r.left, py = e.clientY - r.top;
+    var bx = wx(px), by = wy(py);
+    var k = Math.exp(-e.deltaY * 0.0018);
+    view.s = Math.max(8, Math.min(700, view.s * k));
+    view.cx = bx - (px - cw / dpr / 2) / view.s;
+    view.cy = by + (py - ch / dpr / 2) / view.s;
+    draw();
+  }, { passive: false });
+
+  cv.addEventListener("keydown", function (e) {
+    var step = 40 / view.s, used = true;
+    if (e.key === "ArrowLeft") view.cx -= step;
+    else if (e.key === "ArrowRight") view.cx += step;
+    else if (e.key === "ArrowUp") view.cy += step;
+    else if (e.key === "ArrowDown") view.cy -= step;
+    else if (e.key === "+" || e.key === "=") view.s = Math.min(700, view.s * 1.2);
+    else if (e.key === "-" || e.key === "_") view.s = Math.max(8, view.s / 1.2);
+    else if (e.key === "r" || e.key === "R") fit();
+    else used = false;
+    if (used) { e.preventDefault(); draw(); }
+  });
+
+  var STATE_TEXT = ["unobserved — no points, no camera ray", "free floor", "blocked"];
+  function readout(x, y) {
+    var i = Math.floor((x - G.x0) / CELL), j = Math.floor((y - G.y0) / CELL);
+    document.getElementById("r-coord").textContent =
+      "x " + x.toFixed(2) + "  y " + y.toFixed(2) + " m";
+    var st = document.getElementById("r-state"), sw = document.getElementById("r-swatch");
+    if (i < 0 || j < 0 || i >= G.w || j >= G.h) {
+      st.textContent = "outside the mapped area";
+      sw.style.background = css("--dim");
+      return;
+    }
+    var k = j * G.w + i, s = OCC[k];
+    var txt = STATE_TEXT[s];
+    if (s === OCCUPIED) txt += " · " + (HGT[k] / 255 * G.height_scale).toFixed(2) + " m tall";
+    st.textContent = txt;
+    sw.style.background = s === OCCUPIED ? css("--crab")
+      : s === FREE ? css("--good") : css("--unknown");
+  }
+
+  // ---- panel ----------------------------------------------------------
+  var LAYER_DESC = {
+    occ: "<strong>The planner's view.</strong> A cell is blocked when at least three points stand "
+       + OCC_TXT() + " above the floor plane. Free means floor points landed there or a camera ray "
+       + "crossed it. Unobserved is neither — and is not the same as free.",
+    height: "<strong>Tallest point in each blocked cell.</strong> Cyan is ankle height, amber waist, "
+       + "red above the shoulder. Low patches against the wall are skirting and door thresholds.",
+    colour: "<strong>Mean colour of the points in each cell.</strong> Cream block wall, grey carpet, "
+       + "and one saturated orange run where the painted door surround is.",
+    struct: "<strong>Occupancy dropped back so the fit shows.</strong> Cyan lines are wall runs "
+       + "refitted from the grid; dashed ones sit more than 1.5 m from any camera."
+  };
+  function OCC_TXT() { return "20 cm or more"; }
+
+  var layerBtns = [].slice.call(document.querySelectorAll("#layers button"));
+  layerBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      layerBtns.forEach(function (o) { o.setAttribute("aria-checked", String(o === b)); });
+      opt.layer = b.dataset.layer;
+      document.getElementById("layer-desc").innerHTML = LAYER_DESC[opt.layer];
+      draw();
+    });
+  });
+
+  [["t-path", "path"], ["t-struct", "struct"], ["t-labels", "labels"], ["t-unknown", "unknown"]]
+    .forEach(function (pair) {
+      document.getElementById(pair[0]).addEventListener("change", function (e) {
+        opt[pair[1]] = e.target.checked;
+        draw();
+      });
+    });
+
+  document.getElementById("reset").addEventListener("click", function () { fit(); draw(); });
+  var panel = document.getElementById("panel"), body = document.getElementById("panel-body");
+  document.getElementById("collapse").addEventListener("click", function (e) {
+    var open = panel.dataset.collapsed === "true";
+    panel.dataset.collapsed = String(!open);
+    body.hidden = !open;
+    e.currentTarget.setAttribute("aria-expanded", String(open));
+  });
+
+  // ---- panel content --------------------------------------------------
+  function fmt(n, d) { return n === null || n === undefined ? "—" : n.toFixed(d === undefined ? 2 : d); }
+  function setText(id, t) { document.getElementById(id).textContent = t; }
+
+  setText("s-cell", (CELL * 100).toFixed(0) + " cm");
+  setText("s-width", fmt(M.width_median) + " m");
+  setText("s-len", fmt(M.path_length) + " m");
+  setText("s-struct", M.walls + " · " + M.openings);
+  // The scale is not asserted, it is checked: a plane fitted to the cloud
+  // puts the carried phone at eye height, which is what a metric
+  // reconstruction of a person walking should do.
+  setText("s-scale", "cam " + fmt(D.plane.cam_height) + " m ±"
+    + (100 * D.plane.cam_height_std / D.plane.cam_height).toFixed(0) + "%");
+  setText("cav-bow", fmt(M.path_bow) + " m");
+  document.getElementById("layer-desc").innerHTML = LAYER_DESC.occ;
+
+  document.getElementById("legend").innerHTML = [
+    ["--good", "Free", "floor points landed here, or the operator walked through it"],
+    ["--crab", "Blocked", "≥ 3 points, 20 cm to 1.8 m above the floor"],
+    ["--unknown", "Unobserved", "nothing was ever seen here — plan around it"],
+    ["--warn", "Camera path", "124 solved poses, 1.67 m above the floor"],
+    ["--cyan", "Wall", "straight run refitted from blocked cells"]
+  ].map(function (r) {
+    return '<div><span class="key" style="background:var(' + r[0] + ');border-color:var(--line)"></span>'
+      + '<span class="what"><b>' + r[1] + '</b> — ' + r[2] + '</span></div>';
+  }).join("");
+
+  document.getElementById("figs").innerHTML = [
+    ["Corridor width (median of " + M.width_stations + ")", fmt(M.width_median) + " m"],
+    ["Width interquartile range", fmt(M.width_p25) + "–" + fmt(M.width_p75) + " m"],
+    ["Walked path length", fmt(M.path_length) + " m"],
+    ["Mapped extent", fmt(M.extent_x, 1) + " × " + fmt(M.extent_y, 1) + " m"],
+    ["Cells free / blocked / unknown", G.free.toLocaleString() + " / " + G.occupied.toLocaleString() + " / " + G.unknown.toLocaleString()],
+    ["Free only from camera rays", G.carved.toLocaleString() + " cells"],
+    ["Floor / obstacle / overhead points", (D.counts.floor / 1000).toFixed(0) + "k / "
+      + (D.counts.obstacle / 1000).toFixed(0) + "k / " + (D.counts.overhead / 1000).toFixed(0) + "k"],
+    ["Ground plane inliers", (D.plane.inlier_frac * 100).toFixed(1) + "% of "
+      + (D.plane.inlier_of / 1000).toFixed(0) + "k"],
+    ["Plane vs trajectory prior", fmt(D.plane.tilt_vs_traj_deg, 2) + "°"],
+    ["Camera height above plane", fmt(D.plane.cam_height) + " ± " + fmt(D.plane.cam_height_std) + " m"],
+    ["Within 2.5 m of a camera", (M.near_path_frac * 100).toFixed(0) + "% of mapped cells"]
+  ].map(function (r) { return "<dt>" + r[0] + "</dt><dd>" + r[1] + "</dd>"; }).join("");
+
+  // Everything the extractor found, each carrying the evidence that
+  // earned it. Walls come longest first; the short ones fold away.
+  var items = []
+    .concat(D.regions.map(function (r) {
+      return { cls: "region", nm: r.label, mg: r.area.toFixed(2) + " m²", ev: r.evidence,
+               at: r.centre };
+    }))
+    .concat(D.openings.map(function (o) {
+      return { cls: "opening", nm: "Opening", mg: o.width.toFixed(2) + " m", ev: o.evidence,
+               at: o.centre };
+    }))
+    .concat(D.walls.map(function (w, i) {
+      return { cls: "wall", nm: "Wall W" + (i + 1), mg: w.length.toFixed(2) + " m", ev: w.evidence,
+               at: [(w.a[0] + w.b[0]) / 2, (w.a[1] + w.b[1]) / 2] };
+    }));
+
+  var SHOWN = 6, expanded = false;
+  var foundEl = document.getElementById("found");
+  var moreEl = document.getElementById("found-more");
+  document.getElementById("found-count").textContent =
+    "· " + items.length + " item" + (items.length === 1 ? "" : "s");
+
+  function renderFound() {
+    var list = expanded ? items : items.slice(0, SHOWN);
+    foundEl.innerHTML = list.map(function (it, i) {
+      return '<button type="button" class="' + it.cls + '" data-i="' + i + '">'
+        + '<span class="hd"><span class="nm">' + it.nm + '</span>'
+        + '<span class="mg">' + it.mg + '</span></span>'
+        + '<span class="ev">' + it.ev + '</span></button>';
+    }).join("");
+    [].slice.call(foundEl.children).forEach(function (b, i) {
+      b.addEventListener("click", function () {
+        var at = list[i].at;
+        view.cx = at[0]; view.cy = at[1];
+        view.s = Math.max(view.s, 90);
+        draw();
+        cv.focus();
+      });
+    });
+    moreEl.hidden = items.length <= SHOWN;
+    moreEl.textContent = expanded ? "Show fewer" : "Show all " + items.length;
+  }
+  moreEl.addEventListener("click", function () { expanded = !expanded; renderFound(); });
+  renderFound();
+
+  // ---- boot -----------------------------------------------------------
+  function rebuild() { buildSheets(); draw(); }
+  buildSheets();
+  resize();
+  fit();
+  draw();
+  window.addEventListener("resize", resize);
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    (mq.addEventListener ? mq.addEventListener.bind(mq, "change") : mq.addListener.bind(mq))(rebuild);
+  }
+  new MutationObserver(rebuild).observe(document.documentElement,
+    { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>

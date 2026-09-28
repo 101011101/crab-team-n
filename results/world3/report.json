@@ -1,0 +1,92 @@
+{
+  "model": "/Users/ray/Coding/Hackathons/thematrix/out/world3/sparse/1",
+  "cameras_used": 166,
+  "cameras_dropped": [
+    "c_0045.jpg",
+    "c_0046.jpg",
+    "c_0047.jpg",
+    "c_0048.jpg",
+    "c_0049.jpg",
+    "c_0050.jpg",
+    "c_0051.jpg",
+    "c_0052.jpg",
+    "c_0053.jpg",
+    "c_0054.jpg",
+    "c_0055.jpg",
+    "c_0056.jpg",
+    "c_0057.jpg"
+  ],
+  "points": 25831,
+  "camera_path_radius": 3.1078,
+  "per_clip": {
+    "IMG_7373": {
+      "registered": 85,
+      "dropped_diverged": 0
+    },
+    "IMG_7374": {
+      "registered": 36,
+      "dropped_diverged": 0
+    },
+    "IMG_7375": {
+      "registered": 45,
+      "dropped_diverged": 13
+    }
+  },
+  "points_by_clips_observing": {
+    "1": 21639,
+    "2": 2985,
+    "3": 1207
+  },
+  "points_corroborated": 4192,
+  "points_shared_between": {
+    "IMG_7373+IMG_7374": 1818,
+    "IMG_7373+IMG_7375": 3353,
+    "IMG_7374+IMG_7375": 1435
+  },
+  "cross_clip_matches": {
+    "aa": {
+      "tried": 1327,
+      "verified": 870,
+      "rate": 65.6,
+      "median_inliers": 264
+    },
+    "ab": {
+      "tried": 3400,
+      "verified": 637,
+      "rate": 18.7,
+      "median_inliers": 83
+    },
+    "ac": {
+      "tried": 4930,
+      "verified": 1229,
+      "rate": 24.9,
+      "median_inliers": 66
+    },
+    "bb": {
+      "tried": 504,
+      "verified": 293,
+      "rate": 58.1,
+      "median_inliers": 316
+    },
+    "bc": {
+      "tried": 2320,
+      "verified": 824,
+      "rate": 35.5,
+      "median_inliers": 71
+    },
+    "cc": {
+      "tried": 820,
+      "verified": 662,
+      "rate": 80.7,
+      "median_inliers": 290
+    }
+  },
+  "floor_coverage_cells": {
+    "IMG_7373": 2743,
+    "IMG_7374": 1821,
+    "IMG_7375": 2143,
+    "all clips": 4705
+  },
+  "coverage_gain_pct": 71.5,
+  "units": "model units; monocular SfM has no metre"
+}

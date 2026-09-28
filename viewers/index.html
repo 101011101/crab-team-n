@@ -1,0 +1,167 @@
+<title>Crab Team N Index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#EEF3F2; --panel:#FFFFFF; --line:#D3DFDE; --text:#16262B; --dim:#5B7078;
+    --crab:#C4501F; --cyan:#1D8A8A; --good:#2F8F5B; --warn:#9A6B00; --blocked:#B03A36;
+    --sans:"IBM Plex Sans","Helvetica Neue",Arial,system-ui,sans-serif;
+    --mono:"IBM Plex Mono","SFMono-Regular",Menlo,Consolas,monospace;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+    --ground:#0A1317; --panel:#111D22; --line:#1C2C33; --text:#DCE7EA; --dim:#7C929A;
+    --crab:#F0703C; --cyan:#4FC4C4; --good:#64C08C; --warn:#E6B23C; --blocked:#D9534F;
+    color-scheme:dark; } }
+  :root[data-theme="dark"]{
+    --ground:#0A1317; --panel:#111D22; --line:#1C2C33; --text:#DCE7EA; --dim:#7C929A;
+    --crab:#F0703C; --cyan:#4FC4C4; --good:#64C08C; --warn:#E6B23C; --blocked:#D9534F;
+    color-scheme:dark; }
+
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--text);font-family:var(--sans);
+       font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding-inline:20px;padding-block:44px 72px}
+  .eyebrow{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.16em;
+           text-transform:uppercase;color:var(--dim)}
+  h1{margin:6px 0 4px;font-size:30px;font-weight:600;letter-spacing:-.02em;text-wrap:balance}
+  .thesis{margin:0;color:var(--dim);font-size:15px;max-width:60ch}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  :focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+
+  .stats{display:flex;flex-wrap:wrap;gap:10px 30px;margin:26px 0 0;padding:16px 0;
+         border-block:1px solid var(--line)}
+  .stats div{display:flex;flex-direction:column;gap:2px}
+  .stats dt{font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+            text-transform:uppercase;color:var(--dim)}
+  .stats dd{margin:0;font-family:var(--mono);font-size:17px;font-variant-numeric:tabular-nums}
+
+  h2{margin:40px 0 4px;font-size:12px;font-family:var(--mono);letter-spacing:.14em;
+     text-transform:uppercase;color:var(--dim);font-weight:500}
+  .note{margin:0 0 14px;color:var(--dim);font-size:13px;max-width:62ch}
+
+  ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+  li{background:var(--panel);border:1px solid var(--line)}
+  li+li{border-top:0}
+  a.row,.row{display:grid;grid-template-columns:1fr auto;gap:4px 16px;
+             padding:14px 16px;text-decoration:none;color:inherit;align-items:baseline}
+  a.row:hover{background:color-mix(in srgb,var(--cyan) 7%,var(--panel))}
+  .t{font-weight:500;font-size:15px}
+  .d{grid-column:1;color:var(--dim);font-size:13px;max-width:56ch}
+  .chip{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+        padding:3px 7px;border:1px solid currentColor;border-radius:3px;white-space:nowrap}
+  .live{color:var(--good)} .soon{color:var(--warn)} .local{color:var(--cyan)}
+  .metric{grid-column:1;font-family:var(--mono);font-size:12px;color:var(--good);
+          font-variant-numeric:tabular-nums}
+
+  code{font-family:var(--mono);font-size:12.5px;background:color-mix(in srgb,var(--dim) 14%,transparent);
+       padding:1px 5px;border-radius:3px}
+  .foot{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);
+        color:var(--dim);font-size:12.5px;max-width:62ch}
+  @media (max-width:560px){ h1{font-size:24px} .wrap{padding-block:30px 52px} }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Crab Team N &middot; Hack the North</p>
+  <h1>Index</h1>
+  <p class="thesis">A world from multiple visions. Cheap camera robots explore together,
+     build one shared world, and clear each other's paths. Every page below is a
+     sub-problem proved on real data or in simulation.</p>
+
+  <dl class="stats">
+    <div><dt>Sub-problems proved</dt><dd>11</dd></div>
+    <div><dt>Test suites green</dt><dd>7</dd></div>
+    <div><dt>Robot sessions reconstructed</dt><dd>1</dd></div>
+  </dl>
+
+  <h2>Interactive</h2>
+  <p class="note">Point clouds take about ten seconds to load &mdash; the page looks blank while it parses.</p>
+  <ul>
+    <li><a class="row" href="https://claude.ai/artifact/EPUB7MxwmWgcbiR95VTzhg">
+      <span class="t">Field Sandbox &mdash; why a crab moves the box</span><span class="chip live">live</span>
+      <span class="d">Rectangular crabs, a real hitbox, and a box that moves only when a crab drives
+        <em>into</em> it. Each crab holds one reach field and asks whether a cheaper world exists.
+        Three goals open at once &mdash; UNBLOCK, EXPLORE, REACH &mdash; every one latched to an owner.
+        Leave the second doorway open and nobody touches the box; seal it and one crab shoves it clear
+        while another waits at the gap.</span>
+      <span class="metric">10/10 runs reach the reward &middot; push derived, not scripted &middot; 0 collisions</span></a></li>
+
+    <li><a class="row" href="https://claude.ai/artifact/5emLuEyby8BTXtS8K7FGnM">
+      <span class="t">Swarm Mission Replay</span><span class="chip live">live</span>
+      <span class="d">Two crabs explore, hit a blocked corridor, and derive the collaboration that clears it. Second tab: every waypoint command as it would reach the robot.</span>
+      <span class="metric">4/4 species &middot; 43.2 s &middot; deterministic</span></a></li>
+
+    <li><a class="row" href="https://claude.ai/artifact/1UtaCfzCXNC8wK7yM979A5">
+      <span class="t">Two Routes, One Reward</span><span class="chip live">live</span>
+      <span class="d">Same code, two worlds. With the south corridor open a crab detours; sealed, the solver emits a push instead. Nobody scheduled the race.</span>
+      <span class="metric">61.6 s detour &middot; 33.7 s push</span></a></li>
+
+    <li><a class="row" href="https://claude.ai/artifact/93T4dN9HnLKLTaAkhTVxmC">
+      <span class="t">Robot 1&rsquo;s First Room</span><span class="chip live">live</span>
+      <span class="d">The first 3D world built from an actual robot, not a phone. 49 seconds of QVGA
+        video from one ESP32-CAM. The solved camera trace is drawn beside the wheel dead-reckoning
+        trace, because agreeing twice is the only evidence here. What is assumed is labelled as assumed.</span>
+      <span class="metric">70/125 frames &middot; 0.790 px &middot; 155k points &middot; SfM vs wheels 5.2 cm RMS</span></a></li>
+
+    <li><a class="row" href="https://claude.ai/artifact/JyTg5svgpqYsDdYLnzbabx">
+      <span class="t">Corridor Point Cloud</span><span class="chip live">live</span>
+      <span class="d">The 3D world rebuilt from phone video. Compare the solved reconstruction against the depth shell an ESP32-CAM would produce.</span>
+      <span class="metric">124/124 poses &middot; 0.815 px &middot; 14.4 &times; 4.7 &times; 3.1 m</span></a></li>
+
+    <li><a class="row" href="https://claude.ai/artifact/VVn7Cod6C4h2Q3wMPRKNnq">
+      <span class="t">Arena Editor</span><span class="chip live">live</span>
+      <span class="d">Draw walls, drop a reward and a movable block, then export JSON or ready-to-paste Python straight into the simulator. Checks chassis clearance and whether the reward is reachable without moving anything.</span>
+      <span class="metric">opens on the race arena &middot; 0.18 m chassis &middot; undo, import, autosave</span></a></li>
+
+    <li><a class="row" href="https://claude.ai/artifact/AYDLkED8gDspS6trudm551">
+      <span class="t">Corridor Bird's-Eye Map</span><span class="chip live">live</span>
+      <span class="d">The 3D world collapsed to a labelled top-down occupancy map &mdash; what the robots would plan on. Its failures are marked, not hidden.</span>
+      <span class="metric">width 1.44 m &middot; camera height 1.672 &plusmn; 0.050 m &middot; 13 walls</span></a></li>
+  </ul>
+
+    <li><a class="row" href="https://claude.ai/artifact/6GGcGkUQESiJTEfTP1vgfL">
+      <span class="t">Where the Camera Walked</span><span class="chip live">live</span>
+      <span class="d">A real webcam walk around one printed AprilTag, drawn in the tag's frame.
+        The whole localization chain, proved before a robot exists.</span>
+      <span class="metric">pose to &lt;1 mm &middot; ambiguous poses refused</span></a></li>
+
+    <li><a class="row" href="https://claude.ai/artifact/1iFopdNjJ7UsbUChKcyMm6">
+      <span class="t">AprilTag Screen Target</span><span class="chip live">live</span>
+      <span class="d">Open it on a laptop and the screen becomes a calibrated tag. It measures the
+        display and prints the true tag size, so the scale is right without a printer.</span>
+      <span class="metric">emailable &middot; size read off the screen, not assumed</span></a></li>
+  </ul>
+
+  <h2>Run locally</h2>
+  <p class="note">From <code>crab-team-n/central</code>. These need the camera in front of you.</p>
+  <ul>
+    <li><div class="row"><span class="t">tag_probe.py</span><span class="chip local">webcam</span>
+      <span class="d">Tape one AprilTag to a wall and walk around. Draws where the camera has been, in the tag's frame. Proves the whole localization chain before a robot exists.</span>
+      <span class="metric">pose verified to &lt;1 mm &middot; ambiguous poses refused</span></div></li>
+    <li><div class="row"><span class="t">calibrate_webcam.py</span><span class="chip local">webcam</span>
+      <span class="d">Checkerboard intrinsics. Fifteen minutes buys an order of magnitude.</span>
+      <span class="metric">16.5 cm guessed &rarr; 1.80 cm calibrated</span></div></li>
+    <li><div class="row"><span class="t">print_tag.py</span><span class="chip local">printer</span>
+      <span class="d">Printable tags with the true size written on them. Roughly 10 cm of tag per metre of range.</span></div></li>
+    <li><div class="row"><span class="t">mission_race.py</span><span class="chip local">sim</span>
+      <span class="d">The race, headless. <code>--seal-south</code> forces the push instead of the detour.</span></div></li>
+  </ul>
+
+  <h2>Read</h2>
+  <ul>
+    <li><div class="row"><span class="t">docs/build-state.md</span>
+      <span class="d">What is proved, what is only written, and what is blocked on the team.</span></div></li>
+    <li><div class="row"><span class="t">docs/merge-plan.md</span>
+      <span class="d">Merging with htnrobomaze. Their transport wins, our solver wins, and the tag frames are flipped.</span></div></li>
+    <li><div class="row"><span class="t">docs/tag-size-rule.md</span>
+      <span class="d">Measured: how big to print tags, and why apparent pixels are what matter.</span></div></li>
+    <li><div class="row"><span class="t">docs/video-capture-guide.md</span>
+      <span class="d">Shoot footage that reconstructs. Walk sideways, not forwards.</span></div></li>
+  </ul>
+
+  <p class="foot"><strong>Keep this page current.</strong> Whenever a new page is published,
+     add it here and republish &mdash; this is the only index, and a link that only exists in a
+     chat transcript is a link the team cannot find. Source lives at
+     <code>crab-team-n/viewers/index.html</code>.</p>
+</div>

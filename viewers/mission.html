@@ -1,0 +1,974 @@
+<title>Swarm Mission Replay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* ---------- tokens: dark-first instrument panel ---------- */
+  :root {
+    color-scheme: dark;
+    --ground:  #0A1317;
+    --panel:   #111D22;
+    --line:    #1C2C33;
+    --text:    #DCE7EA;
+    --dim:     #7C929A;
+    --crab1:   #F0703C;
+    --crab2:   #4FC4C4;
+    --good:    #64C08C;
+    --warn:    #E6B23C;
+    --blocked: #D9534F;
+    --sp-green: #58C46A;
+    --sp-red:   #E86A6A;
+    --sp-blue:  #5B9BF0;
+    --focus:   #4FC4C4;
+    --sans: "IBM Plex Sans", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --ground:  #EEF3F2;
+      --panel:   #FFFFFF;
+      --line:    #D3DFDE;
+      --text:    #16262B;
+      --dim:     #5B6F75;
+      --crab1:   #C9541F;
+      --crab2:   #1E8E8E;
+      --good:    #2E8B57;
+      --warn:    #A8760E;
+      --blocked: #C0392B;
+      --sp-green: #2E8B3E;
+      --sp-red:   #C62828;
+      --sp-blue:  #1E5FBF;
+      --focus:   #1E8E8E;
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --ground:  #EEF3F2;
+    --panel:   #FFFFFF;
+    --line:    #D3DFDE;
+    --text:    #16262B;
+    --dim:     #5B6F75;
+    --crab1:   #C9541F;
+    --crab2:   #1E8E8E;
+    --good:    #2E8B57;
+    --warn:    #A8760E;
+    --blocked: #C0392B;
+    --sp-green: #2E8B3E;
+    --sp-red:   #C62828;
+    --sp-blue:  #1E5FBF;
+    --focus:   #1E8E8E;
+  }
+
+  /* ---------- base ---------- */
+  * { box-sizing: border-box; }
+  html { height: 100%; }
+  body {
+    margin: 0;
+    height: 100dvh;
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.45;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  h1, h2, h3, p, ol, ul { margin: 0; }
+  ol, ul { padding: 0; list-style: none; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .c1 { color: var(--crab1); }
+  .c2 { color: var(--crab2); }
+
+  /* ---------- top bar ---------- */
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+  .brand strong { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; white-space: nowrap; }
+  .tabs { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--ground); }
+  .tabs button {
+    border: 0; background: transparent; padding: 5px 12px; border-radius: 4px;
+    color: var(--dim); font-weight: 500; font-size: 13px;
+  }
+  .tabs button[aria-selected="true"] { background: var(--panel); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
+  .stats { margin-left: auto; display: flex; gap: 22px; }
+  .stat { display: flex; flex-direction: column; line-height: 1.15; }
+  .stat .num { font-size: 15px; font-weight: 500; }
+  .stat .num.good { color: var(--good); }
+  .stat .num.blocked { color: var(--blocked); }
+
+  /* ---------- views ---------- */
+  main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .view { flex: 1; min-height: 0; }
+  .view[hidden], [hidden] { display: none !important; }
+
+  /* mission layout */
+  #view-mission {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 0;
+  }
+  .stage { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 16px; min-width: 0; }
+  .arena-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 5 / 2;
+    max-height: calc(100dvh - 230px);
+    min-height: 180px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .arena-wrap canvas, .trace-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .transport { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; color: var(--text);
+  }
+  .btn:hover { border-color: var(--dim); }
+  #play { min-width: 92px; }
+  .scrub { flex: 1 1 200px; display: flex; align-items: center; gap: 10px; min-width: 0; }
+  input[type="range"] { flex: 1; min-width: 0; accent-color: var(--crab2); height: 22px; margin: 0; background: transparent; }
+  .clock { font-size: 12.5px; color: var(--dim); white-space: nowrap; }
+  .clock b { color: var(--text); font-weight: 500; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--panel); }
+  .seg button {
+    border: 0; background: transparent; padding: 6px 10px; font-family: var(--mono); font-size: 12px; color: var(--dim);
+    border-right: 1px solid var(--line);
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { color: var(--text); background: var(--line); }
+  .seg button:focus-visible { outline-offset: -2px; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+  .legend i.ring { border-radius: 50%; border: 2px solid currentColor; width: 8px; height: 8px; background: transparent; }
+
+  /* right rail */
+  .rail {
+    border-left: 1px solid var(--line);
+    background: var(--panel);
+    display: flex; flex-direction: column;
+    min-height: 0; overflow-y: auto;
+  }
+  .panel { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .panel h2 { margin-bottom: 8px; }
+  .kv { display: grid; grid-template-columns: auto 1fr auto; column-gap: 10px; row-gap: 4px; align-items: center; font-size: 12.5px; }
+  .kv .k { font-family: var(--mono); font-weight: 500; }
+  .kv .d { min-width: 0; color: var(--dim); font-size: 11.5px; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500;
+    padding: 1px 6px; border-radius: 3px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap;
+    justify-self: end;
+  }
+  .chip.frontier { color: var(--warn); border-color: var(--warn); }
+  .chip.explored, .chip.reachable { color: var(--good); border-color: var(--good); }
+  .chip.blocked, .chip.impassable { color: var(--blocked); border-color: var(--blocked); }
+  .edges { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
+
+  .crabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .crab { border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; border-top: 3px solid var(--cc); min-width: 0; }
+  .crab .id { font-family: var(--mono); font-weight: 600; color: var(--cc); font-size: 12px; letter-spacing: 0.08em; }
+  .crab .task { font-family: var(--mono); font-size: 12.5px; font-weight: 500; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .crab .task.idle { color: var(--dim); font-weight: 400; }
+  .crab .state { font-size: 11.5px; color: var(--dim); margin-top: 1px; }
+  .crab .wp { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .tracks { margin-top: 8px; display: grid; grid-template-columns: auto 1fr auto; gap: 3px 8px; align-items: center; font-family: var(--mono); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .tracks .lab { color: var(--dim); }
+  .tracks .val { text-align: right; min-width: 5ch; }
+  .bar { position: relative; height: 6px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .bar::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--dim); opacity: .6; }
+  .bar i { position: absolute; top: 0; bottom: 0; background: var(--cc); }
+
+  .logpanel { flex: 1; display: flex; flex-direction: column; min-height: 200px; border-bottom: 0; }
+  .log { flex: 1; overflow-y: auto; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; max-height: 60vh; }
+  .log li { display: grid; grid-template-columns: 5.5ch 1fr; gap: 8px; padding: 3px 6px; border-left: 2px solid transparent; border-radius: 2px; }
+  .log li .t { color: var(--dim); text-align: right; }
+  .log li.who1 { border-left-color: var(--crab1); }
+  .log li.who2 { border-left-color: var(--crab2); }
+  .log li.beat { background: color-mix(in srgb, var(--warn) 14%, transparent); }
+  .log li.beat .tag { display: inline-block; margin-left: 6px; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--warn); border: 1px solid var(--warn); border-radius: 3px; padding: 0 4px; vertical-align: 1px; }
+  .log li.done { background: color-mix(in srgb, var(--good) 14%, transparent); }
+  .log li.done .tag { color: var(--good); border-color: var(--good); }
+  .log li.final { color: var(--good); }
+  .log .empty { color: var(--dim); padding: 3px 6px; }
+
+  /* ---------- traces view ---------- */
+  #view-traces { padding: 14px 16px 24px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+  .runs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .run {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 8px 12px; min-width: 150px;
+  }
+  .run:hover { border-color: var(--dim); }
+  .run[aria-selected="true"] { border-color: var(--text); }
+  .run .lbl { font-weight: 500; font-size: 13px; }
+  .run .res { font-family: var(--mono); font-size: 11.5px; color: var(--good); font-variant-numeric: tabular-nums; }
+  .run .res.bad { color: var(--blocked); }
+  .trace-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 14px; align-items: start; }
+  .trace-wrap { position: relative; width: 100%; aspect-ratio: 5 / 2; min-height: 200px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .trace-wrap.stall { border-color: var(--blocked); }
+  .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .note { font-size: 13px; color: var(--dim); max-width: 60ch; }
+  .note b { color: var(--text); font-weight: 500; }
+  .note.stall { border-left: 3px solid var(--blocked); padding-left: 10px; color: var(--text); }
+  .note .num { color: var(--text); }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-weight: 500; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+  th:first-child, td:first-child { text-align: left; }
+  tr:last-child td { border-bottom: 0; }
+  td.ok { color: var(--good); }
+  td.bad { color: var(--blocked); font-weight: 500; }
+  .plot { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+  .plot .hd { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .plot .sub { font-family: var(--mono); font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .plot canvas { display: block; width: 100%; height: 170px; }
+  .plot .keys { display: flex; gap: 14px; font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .plot .keys i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 5px; background: var(--text); }
+  .plot .keys i.r { background: var(--dim); }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 820px) {
+    #view-mission { grid-template-columns: minmax(0, 1fr); align-content: start; }
+    .view { flex: 0 0 auto; }
+    .rail { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+    .arena-wrap { max-height: none; }
+    .log { max-height: 40vh; }
+    .trace-grid { grid-template-columns: minmax(0, 1fr); }
+    main { overflow: visible; }
+    body { height: auto; min-height: 100dvh; }
+  }
+  @media (max-width: 560px) {
+    .top { gap: 10px 14px; }
+    .stats { margin-left: 0; width: 100%; gap: 18px; }
+    .stat.clock-stat { display: none; }
+    .tabs { order: 3; width: 100%; }
+    .tabs button { flex: 1; }
+    .stats { order: 2; }
+    .crabs { grid-template-columns: 1fr; }
+    .stage { padding: 12px; }
+    #view-traces { padding: 12px 12px 20px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<header class="top">
+  <div class="brand">
+    <span class="eyebrow">Crab Team N · Hack the North</span>
+    <strong>Swarm Mission Replay</strong>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button role="tab" id="tab-mission" aria-selected="true" aria-controls="view-mission">Mission replay</button>
+    <button role="tab" id="tab-traces" aria-selected="false" aria-controls="view-traces" tabindex="-1">Waypoint traces</button>
+  </nav>
+  <div class="stats" aria-live="off">
+    <div class="stat"><span class="eyebrow">Species found</span><span class="num" id="st-species">0/4</span></div>
+    <div class="stat"><span class="eyebrow">Corridor e2</span><span class="num blocked" id="st-corridor">blocked</span></div>
+    <div class="stat clock-stat"><span class="eyebrow">Mission clock</span><span class="num" id="st-clock">0.0 s</span></div>
+  </div>
+</header>
+
+<main>
+  <!-- ================= MISSION REPLAY ================= -->
+  <section class="view" id="view-mission" role="tabpanel" aria-labelledby="tab-mission">
+    <div class="stage">
+      <div class="arena-wrap">
+        <canvas id="arena" role="img" aria-label="Top-down replay of two crabs exploring a two-room arena"></canvas>
+      </div>
+      <div class="transport">
+        <button class="btn" id="play" aria-label="Pause replay">Pause</button>
+        <div class="scrub">
+          <input type="range" id="scrub" min="0" max="43.25" step="0.05" value="0" aria-label="Mission time in seconds" aria-valuetext="0.0 seconds">
+          <span class="clock mono"><b id="clock">0.00</b> / 43.25 s</span>
+        </div>
+        <div class="seg" role="group" aria-label="Playback speed">
+          <button data-speed="0.5" aria-pressed="false">0.5×</button>
+          <button data-speed="1" aria-pressed="true">1×</button>
+          <button data-speed="2" aria-pressed="false">2×</button>
+          <button data-speed="4" aria-pressed="false">4×</button>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--crab1)"></i>crab 1</span>
+        <span><i style="background:var(--crab2)"></i>crab 2</span>
+        <span><i style="background:var(--blocked)"></i>block</span>
+        <span><i class="ring" style="color:var(--sp-green)"></i>species, hollow until found</span>
+        <span><i style="background:var(--warn)"></i>frontier</span>
+        <span><i style="background:var(--good)"></i>explored / reachable</span>
+      </div>
+    </div>
+
+    <aside class="rail">
+      <section class="panel">
+        <h2 class="eyebrow">World model</h2>
+        <div class="kv" id="places"></div>
+        <div class="kv edges" id="edges"></div>
+      </section>
+      <section class="panel">
+        <h2 class="eyebrow">Crabs</h2>
+        <div class="crabs" id="crabs"></div>
+      </section>
+      <section class="panel logpanel">
+        <h2 class="eyebrow">Event log</h2>
+        <ol class="log" id="log" aria-live="polite"></ol>
+      </section>
+    </aside>
+  </section>
+
+  <!-- ================= WAYPOINT TRACES ================= -->
+  <section class="view" id="view-traces" role="tabpanel" aria-labelledby="tab-traces" hidden>
+    <div class="runs" role="tablist" aria-label="Recorded runs" id="runs"></div>
+    <div class="trace-grid">
+      <div class="trace-wrap" id="trace-wrap">
+        <canvas id="trace" role="img" aria-label="Path the robot drove, with target waypoints"></canvas>
+      </div>
+      <div class="side">
+        <p class="note" id="trace-note"></p>
+        <div class="tablewrap">
+          <table id="results">
+            <thead><tr><th>wp</th><th>target x, y (m)</th><th>arrived</th><th>gap (cm)</th><th>seconds</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="plot">
+      <div class="hd">
+        <div>
+          <h2 class="eyebrow">Track speed · commands on the wire to the ESP32</h2>
+          <div class="sub" id="plot-sub"></div>
+        </div>
+        <div class="keys"><span><i></i>l (left track)</span><span><i class="r"></i>r (right track)</span></div>
+      </div>
+      <canvas id="speed" role="img" aria-label="Left and right track speed over time"></canvas>
+    </div>
+  </section>
+</main>
+
+<script src="mission.js"></script>
+<script src="waypoints.js"></script>
+<script>
+(function () {
+  'use strict';
+  const M = window.MISSION, W = window.WAYPOINTS;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (s) => document.querySelector(s);
+
+  /* ---------- theme tokens, re-read on change ---------- */
+  const TOKEN_NAMES = ['ground','panel','line','text','dim','crab1','crab2','good','warn','blocked','sp-green','sp-red','sp-blue'];
+  let T = {};
+  function readTokens() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const n of TOKEN_NAMES) T[n] = cs.getPropertyValue('--' + n).trim();
+    T.mono = cs.getPropertyValue('--mono').trim();
+    T.sans = cs.getPropertyValue('--sans').trim();
+  }
+  readTokens();
+  matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { readTokens(); redrawAll(); });
+  new MutationObserver(() => { readTokens(); redrawAll(); })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  const crabColour = (id) => id === 1 ? T.crab1 : id === 2 ? T.crab2 : T.text;
+  const speciesColour = (c) => c === 'green' ? T['sp-green'] : c === 'red' ? T['sp-red'] : c === 'blue' ? T['sp-blue'] : T.text;
+  const stateColour = (s) => s === 'EXPLORED' || s === 'REACHABLE' ? T.good : s === 'FRONTIER' ? T.warn
+                            : s === 'BLOCKED' || s === 'IMPASSABLE' ? T.blocked : T.dim;
+  function withAlpha(hex, a) {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  /* ---------- canvas helpers ---------- */
+  function prep(canvas) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const r = canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w, h };
+  }
+  // letterboxed projection of metre-space bounds into a w x h box; y up
+  function projector(b, w, h, pad) {
+    const bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+    const s = Math.min((w - 2 * pad) / bw, (h - 2 * pad) / bh);
+    const ox = (w - bw * s) / 2, oy = (h - bh * s) / 2;
+    return { s, X: (x) => ox + (x - b.x0) * s, Y: (y) => h - oy - (y - b.y0) * s };
+  }
+  function findIdx(arr, t) { // last index with arr[i].t <= t
+    let lo = 0, hi = arr.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (arr[mid].t <= t) lo = mid; else hi = mid - 1; }
+    return lo;
+  }
+  const lerp = (a, b, k) => a + (b - a) * k;
+  function lerpAngle(a, b, k) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * k; }
+  function drawGrid(ctx, P, b, step) {
+    ctx.strokeStyle = T.line; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = Math.ceil(b.x0 / step) * step; x <= b.x1 + 1e-9; x += step) { ctx.moveTo(P.X(x), P.Y(b.y0)); ctx.lineTo(P.X(x), P.Y(b.y1)); }
+    for (let y = Math.ceil(b.y0 / step) * step; y <= b.y1 + 1e-9; y += step) { ctx.moveTo(P.X(b.x0), P.Y(y)); ctx.lineTo(P.X(b.x1), P.Y(y)); }
+    ctx.stroke();
+  }
+  function drawWalls(ctx, P, walls) {
+    ctx.strokeStyle = T.text; ctx.lineWidth = 2.5; ctx.lineCap = 'square';
+    ctx.beginPath();
+    for (const [x1, y1, x2, y2] of walls) { ctx.moveTo(P.X(x1), P.Y(y1)); ctx.lineTo(P.X(x2), P.Y(y2)); }
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
+  function scaleBar(ctx, P, w, h) {
+    const len = P.s; // 1 m
+    const x = w - 14 - len, y = h - 14;
+    ctx.strokeStyle = T.dim; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y); ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4); ctx.moveTo(x + len, y - 4); ctx.lineTo(x + len, y + 4); ctx.stroke();
+    ctx.fillStyle = T.dim; ctx.font = `500 10px ${T.mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('1 m', x + len / 2, y - 4);
+  }
+  // robot body oriented by heading th (radians, math convention, y up)
+  function drawBody(ctx, P, x, y, th, colour, size) {
+    const L = size * P.s, Wd = L * 0.72;
+    ctx.save();
+    ctx.translate(P.X(x), P.Y(y));
+    ctx.rotate(-th);
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.roundRect(-L / 2, -Wd / 2, L, Wd, 2);
+    ctx.fill();
+    // heading chevron cut into the front, ground colour
+    ctx.fillStyle = T.ground;
+    ctx.beginPath();
+    ctx.moveTo(L / 2 - 1, 0); ctx.lineTo(L / 2 - L * 0.42, -Wd * 0.36); ctx.lineTo(L / 2 - L * 0.25, 0); ctx.lineTo(L / 2 - L * 0.42, Wd * 0.36); ctx.closePath();
+    ctx.fill();
+    // heading whisker beyond the nose
+    ctx.strokeStyle = colour; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(L / 2, 0); ctx.lineTo(L / 2 + L * 0.55, 0); ctx.stroke();
+    ctx.restore();
+  }
+
+  /* =====================================================
+     MISSION REPLAY
+     ===================================================== */
+  const frames = M.frames, DUR = M.duration;
+  const arenaB = { x0: 0, x1: 5, y0: 0, y1: 2 };
+  const placeNames = Object.keys(M.place_xy);
+  const edgeNames = []; const edgeEnds = {};
+  for (const f of frames) for (const e of f.edges) if (!edgeEnds[e.name]) { edgeNames.push(e.name); edgeEnds[e.name] = [e.a, e.b]; }
+  const crabIds = [...new Set(frames.flatMap(f => f.crabs.map(c => c.id)))];
+  // key beats, taken from the event log
+  const evPush = M.events.find(e => /^assign .*PUSH\(/.test(e.text));
+  const evClear = M.events.find(e => /CLEARED/.test(e.text));
+  const tPush = evPush ? evPush.t : Infinity, tClear = evClear ? evClear.t : Infinity;
+  const evPushNext = M.events.find(e => e.t > tClear && /^release .*PUSH\(/.test(e.text));
+  const tPushEnd = evPushNext ? evPushNext.t : tClear;
+
+  let t = 0, playing = !reduced, speed = 1, lastTs = null, lastLogN = -1, rafId = null;
+
+  const arena = $('#arena'), scrub = $('#scrub'), playBtn = $('#play');
+
+  function sample(tt) {
+    const i = findIdx(frames, tt);
+    const f0 = frames[i], f1 = frames[Math.min(i + 1, frames.length - 1)];
+    const k = f1.t > f0.t ? Math.min(1, Math.max(0, (tt - f0.t) / (f1.t - f0.t))) : 0;
+    const crabs = f0.crabs.map((c, j) => {
+      const n = f1.crabs[j] && f1.crabs[j].id === c.id ? f1.crabs[j] : c;
+      return { ...c, x: lerp(c.x, n.x, k), y: lerp(c.y, n.y, k), th: lerpAngle(c.th, n.th, k) };
+    });
+    return { i, f: f0, crabs };
+  }
+
+  function drawArena() {
+    const { ctx, w, h } = prep(arena);
+    const P = projector(arenaB, w, h, 26);
+    const { i, f, crabs } = sample(t);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = T.panel; ctx.fillRect(0, 0, w, h);
+    drawGrid(ctx, P, arenaB, 0.5);
+
+    // edges of the world model, faint, coloured by state
+    const edgeState = {}; for (const e of f.edges) edgeState[e.name] = e;
+    ctx.setLineDash([4, 5]); ctx.lineWidth = 1.2;
+    for (const name of edgeNames) {
+      const e = edgeState[name]; if (!e) continue;
+      const a = M.place_xy[e.a], b = M.place_xy[e.b]; if (!a || !b) continue;
+      ctx.strokeStyle = withAlpha(stateColour(e.state), 0.55);
+      ctx.beginPath(); ctx.moveTo(P.X(a[0]), P.Y(a[1])); ctx.lineTo(P.X(b[0]), P.Y(b[1])); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    drawWalls(ctx, P, M.walls);
+
+    // places: label + state square
+    ctx.font = `500 11px ${T.mono}`; ctx.textBaseline = 'middle';
+    for (const name of placeNames) {
+      const [px, py] = M.place_xy[name];
+      const st = f.places[name] ? f.places[name].state : 'UNKNOWN';
+      const col = stateColour(st);
+      ctx.fillStyle = st === 'UNKNOWN' ? 'transparent' : col;
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.rect(P.X(px) - 4, P.Y(py) - 4, 8, 8); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = T.dim; ctx.textAlign = 'center';
+      ctx.fillText(name, P.X(px), P.Y(py) - 14);
+      ctx.fillStyle = withAlpha(col, st === 'UNKNOWN' ? 0.7 : 1); ctx.font = `500 9px ${T.mono}`;
+      ctx.fillText(st, P.X(px), P.Y(py) + 13);
+      ctx.font = `500 11px ${T.mono}`;
+    }
+
+    // blocks: solid when present, dashed ghost once cleared
+    for (const b of f.blocks) {
+      const r = b.r * P.s;
+      ctx.beginPath(); ctx.arc(P.X(b.x), P.Y(b.y), r, 0, Math.PI * 2);
+      if (b.cleared) { ctx.setLineDash([3, 3]); ctx.strokeStyle = T.dim; ctx.lineWidth = 1.2; ctx.stroke(); ctx.setLineDash([]); }
+      else { ctx.fillStyle = T.blocked; ctx.fill(); }
+    }
+    // edge_xy labels (e.g. e2 at the corridor mouth)
+    for (const [name, xy] of Object.entries(M.edge_xy)) {
+      const e = edgeState[name]; const st = e ? e.state : 'UNKNOWN';
+      ctx.fillStyle = stateColour(st); ctx.font = `600 10px ${T.mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(name + (e && e.cause ? ' · ' + e.cause : ''), P.X(xy[0]), P.Y(xy[1] + 0.11));
+    }
+
+    // species: hollow until found, then filled and ringed in finder's colour
+    for (const s of f.species) {
+      const r = 0.055 * P.s, col = speciesColour(s.colour);
+      ctx.beginPath(); ctx.arc(P.X(s.x), P.Y(s.y), r, 0, Math.PI * 2);
+      if (s.found_by == null) { ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(); }
+      else {
+        ctx.fillStyle = col; ctx.fill();
+        ctx.strokeStyle = crabColour(s.found_by); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(P.X(s.x), P.Y(s.y), r + 4, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    // trails: last 6 s of recorded frames per crab, fading
+    if (!reduced) {
+      const TRAIL = 6;
+      for (let ci = 0; ci < crabs.length; ci++) {
+        const id = crabs[ci].id, col = crabColour(id);
+        let prev = null;
+        for (let j = Math.max(0, i - 60); j <= i; j++) {
+          const fr = frames[j]; if (fr.t < t - TRAIL) continue;
+          const c = fr.crabs.find(cc => cc.id === id); if (!c) continue;
+          if (prev) {
+            const a = Math.max(0, 1 - (t - fr.t) / TRAIL) * 0.75;
+            ctx.strokeStyle = withAlpha(col, a); ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(P.X(prev.x), P.Y(prev.y)); ctx.lineTo(P.X(c.x), P.Y(c.y)); ctx.stroke();
+          }
+          prev = c;
+        }
+        if (prev) { ctx.strokeStyle = withAlpha(col, 0.75); ctx.beginPath(); ctx.moveTo(P.X(prev.x), P.Y(prev.y)); ctx.lineTo(P.X(crabs[ci].x), P.Y(crabs[ci].y)); ctx.stroke(); }
+      }
+    }
+
+    // waypoints + crabs
+    for (const c of crabs) {
+      const col = crabColour(c.id);
+      if (c.wp) {
+        ctx.setLineDash([2, 4]); ctx.strokeStyle = withAlpha(col, 0.6); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(P.X(c.x), P.Y(c.y)); ctx.lineTo(P.X(c.wp[0]), P.Y(c.wp[1])); ctx.stroke();
+        ctx.setLineDash([]);
+        const wx = P.X(c.wp[0]), wy = P.Y(c.wp[1]);
+        ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(wx, wy - 6); ctx.lineTo(wx + 6, wy); ctx.lineTo(wx, wy + 6); ctx.lineTo(wx - 6, wy); ctx.closePath(); ctx.stroke();
+      }
+    }
+    for (const c of crabs) {
+      const col = crabColour(c.id);
+      drawBody(ctx, P, c.x, c.y, c.th, col, 0.18);
+      ctx.fillStyle = col; ctx.font = `600 11px ${T.mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(String(c.id), P.X(c.x), P.Y(c.y) - 0.13 * P.s);
+    }
+
+    // THE BEAT: the derived push, then the clear
+    const pushing = t >= tPush && t < tClear;
+    const cleared = t >= tClear && t < tPushEnd + 0.6;
+    if (pushing || cleared) {
+      const xy = M.edge_xy.e2 || Object.values(M.edge_xy)[0];
+      const bx = P.X(xy[0]), by = P.Y(xy[1]);
+      const col = pushing ? T.warn : T.good;
+      if (cleared) {
+        const age = t - tClear;
+        if (!reduced && age < 1.2) {
+          const k = age / 1.2;
+          ctx.strokeStyle = withAlpha(T.good, 1 - k); ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(bx, by, 6 + k * 0.5 * P.s, 0, Math.PI * 2); ctx.stroke();
+        } else {
+          ctx.strokeStyle = withAlpha(T.good, 0.8); ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(bx, by, 0.16 * P.s, 0, Math.PI * 2); ctx.stroke();
+        }
+      } else {
+        ctx.strokeStyle = withAlpha(T.warn, 0.9); ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(bx, by, 0.16 * P.s, 0, Math.PI * 2); ctx.stroke();
+      }
+      // caption in the void above the corridor
+      const cx = bx, cy = P.Y(1.62);
+      const line1 = pushing ? 'e2 BLOCKED  →  clear(e2)  →  PUSH(1, e2)' : 'e2 cleared  →  R2N, R2S reachable';
+      const line2 = pushing ? 'derived by the solver, not scripted' : evClear.text;
+      ctx.font = `600 11px ${T.mono}`;
+      const tw = Math.max(ctx.measureText(line1).width, ctx.measureText(line2).width) + 20;
+      const bh = 38, bxl = Math.min(Math.max(8, cx - tw / 2), w - tw - 8);
+      ctx.fillStyle = withAlpha(T.ground, 0.9); ctx.strokeStyle = col; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(bxl, cy - bh / 2, tw, bh, 3); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx, cy + bh / 2); ctx.lineTo(bx, by - 0.16 * P.s - 2); ctx.stroke();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = col; ctx.fillText(line1, bxl + 10, cy - 8);
+      ctx.fillStyle = T.dim; ctx.font = `400 10px ${T.sans}`; ctx.fillText(line2, bxl + 10, cy + 9);
+    }
+
+    scaleBar(ctx, P, w, h);
+  }
+
+  /* ---------- rail ---------- */
+  const placesEl = $('#places'), edgesEl = $('#edges'), crabsEl = $('#crabs'), logEl = $('#log');
+  function motion(c) {
+    if (!c.task) return 'idle · no task';
+    const a = Math.abs(c.l), b = Math.abs(c.r);
+    if (a < 50 && b < 50) return 'stopped';
+    if (Math.sign(c.l) !== Math.sign(c.r) && Math.abs(a - b) < 400) return 'turning in place';
+    if (c.l < 0 && c.r < 0) return 'reversing';
+    return Math.abs(c.l - c.r) > 400 ? 'driving, steering' : 'driving';
+  }
+  function renderRail(f) {
+    // places
+    let html = '';
+    for (const n of placeNames) {
+      const st = f.places[n] ? f.places[n].state : 'UNKNOWN';
+      const xy = M.place_xy[n];
+      html += `<span class="k">${n}</span><span class="d">${xy[0].toFixed(1)}, ${xy[1].toFixed(1)}</span><span class="chip ${st.toLowerCase()}">${st}</span>`;
+    }
+    placesEl.innerHTML = html;
+    const es = {}; for (const e of f.edges) es[e.name] = e;
+    html = '';
+    for (const n of edgeNames) {
+      const e = es[n]; const st = e ? e.state : 'UNKNOWN';
+      html += `<span class="k">${n}</span><span class="d">${edgeEnds[n][0]} – ${edgeEnds[n][1]}${e && e.cause ? ' · cause ' + e.cause : ''}</span><span class="chip ${st.toLowerCase()}">${st}</span>`;
+    }
+    edgesEl.innerHTML = html;
+    // crabs
+    html = '';
+    for (const id of crabIds) {
+      const c = f.crabs.find(cc => cc.id === id); if (!c) continue;
+      const bar = (v) => { const p = Math.min(1, Math.abs(v) / 4095) * 50; return v >= 0 ? `left:50%;width:${p}%` : `left:${50 - p}%;width:${p}%`; };
+      const wp = c.wp ? `wp ${c.wp[0].toFixed(2)}, ${c.wp[1].toFixed(2)} · ${Math.hypot(c.wp[0] - c.x, c.wp[1] - c.y).toFixed(2)} m away` : 'no waypoint';
+      html += `<div class="crab" style="--cc:var(--crab${id})">
+        <div class="id">CRAB ${id}</div>
+        <div class="task ${c.task ? '' : 'idle'}" title="${c.task || ''}">${c.task || '— idle —'}</div>
+        <div class="state">${motion(c)}</div>
+        <div class="wp">${wp}</div>
+        <div class="tracks">
+          <span class="lab">l</span><span class="bar"><i style="${bar(c.l)}"></i></span><span class="val">${c.l}</span>
+          <span class="lab">r</span><span class="bar"><i style="${bar(c.r)}"></i></span><span class="val">${c.r}</span>
+        </div>
+      </div>`;
+    }
+    crabsEl.innerHTML = html;
+  }
+  function renderLog(n) {
+    if (n === lastLogN) return;
+    lastLogN = n;
+    if (n === 0) { logEl.innerHTML = '<li class="empty">— no events yet —</li>'; return; }
+    let html = '';
+    for (let k = 0; k < n && k < M.events.length; k++) {
+      const e = M.events[k];
+      const m = /(?:^(?:assign|release) (\d))|(?:^crab (\d))/.exec(e.text);
+      const who = m ? (m[1] || m[2]) : '';
+      let cls = who ? 'who' + who : '';
+      let tag = '';
+      if (/^assign .*PUSH\(/.test(e.text)) { cls += ' beat'; tag = '<span class="tag">derived</span>'; }
+      else if (/CLEARED/.test(e.text)) { cls += ' beat done'; tag = '<span class="tag">cleared</span>'; }
+      else if (/all species found/.test(e.text)) cls += ' final';
+      html += `<li class="${cls}"><span class="t">${e.t.toFixed(2)}</span><span>${e.text}${tag}</span></li>`;
+    }
+    logEl.innerHTML = html;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function renderStats(f) {
+    const found = f.species.filter(s => s.found_by != null).length;
+    const sp = $('#st-species'); sp.textContent = `${found}/${M.species_total}`; sp.className = 'num' + (found === M.species_total ? ' good' : '');
+    const anyBlock = f.blocks.length > 0, cl = anyBlock && f.blocks.every(b => b.cleared);
+    const co = $('#st-corridor'); co.textContent = cl ? 'cleared' : 'blocked'; co.className = 'num ' + (cl ? 'good' : 'blocked');
+    $('#st-clock').textContent = t.toFixed(1) + ' s';
+    $('#clock').textContent = t.toFixed(2);
+  }
+
+  let lastRailIdx = -1;
+  function render() {
+    const { i, f } = sample(t);
+    if (!$('#view-mission').hidden) drawArena();
+    if (i !== lastRailIdx) { lastRailIdx = i; renderRail(f); }
+    renderStats(f);
+    renderLog(t >= DUR - 1e-6 ? M.events.length : f.nevents);
+    scrub.value = t.toFixed(2);
+    scrub.setAttribute('aria-valuetext', t.toFixed(1) + ' seconds');
+  }
+
+  /* ---------- transport ---------- */
+  function setPlaying(p) {
+    playing = p;
+    if (playing && t >= DUR) t = 0;
+    playBtn.textContent = playing ? 'Pause' : (t >= DUR ? 'Replay' : 'Play');
+    playBtn.setAttribute('aria-label', playing ? 'Pause replay' : 'Play replay');
+    lastTs = null;
+    if (playing && rafId == null) rafId = requestAnimationFrame(tick);
+  }
+  function tick(ts) {
+    rafId = null;
+    if (!playing) return;
+    if (lastTs != null) {
+      t += Math.min(0.1, (ts - lastTs) / 1000) * speed;
+      if (t >= DUR) { t = DUR; render(); setPlaying(false); return; }
+      render();
+    }
+    lastTs = ts;
+    rafId = requestAnimationFrame(tick);
+  }
+  playBtn.addEventListener('click', () => setPlaying(!playing));
+  scrub.addEventListener('input', () => { t = Math.min(DUR, Math.max(0, parseFloat(scrub.value))); render(); if (!playing) playBtn.textContent = t >= DUR ? 'Replay' : 'Play'; });
+  for (const b of document.querySelectorAll('.seg button')) {
+    b.addEventListener('click', () => {
+      speed = parseFloat(b.dataset.speed);
+      for (const o of document.querySelectorAll('.seg button')) o.setAttribute('aria-pressed', o === b ? 'true' : 'false');
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === ' ' && !/^(INPUT|BUTTON|SELECT|TEXTAREA)$/.test(document.activeElement.tagName) && !$('#view-mission').hidden) {
+      e.preventDefault(); setPlaying(!playing);
+    }
+  });
+
+  /* =====================================================
+     WAYPOINT TRACES
+     ===================================================== */
+  let runIdx = 0;
+  const runsEl = $('#runs'), traceC = $('#trace'), speedC = $('#speed');
+  function runSummary(r) {
+    const n = r.result.length, ok = r.result.filter(x => x.arrived).length, st = r.result.some(x => x.stalled);
+    return { n, ok, st };
+  }
+  runsEl.innerHTML = W.map((r, i) => {
+    const s = runSummary(r);
+    return `<button class="run" role="tab" aria-selected="${i === runIdx}" data-i="${i}" tabindex="${i === runIdx ? 0 : -1}">
+      <span class="lbl">${r.label}</span>
+      <span class="res ${s.st ? 'bad' : ''}">${s.ok}/${s.n} arrived${s.st ? ' · stalled' : ''}</span></button>`;
+  }).join('');
+  runsEl.addEventListener('click', (e) => { const b = e.target.closest('.run'); if (b) selectRun(+b.dataset.i); });
+  runsEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    selectRun((runIdx + (e.key === 'ArrowRight' ? 1 : W.length - 1)) % W.length);
+    runsEl.querySelector(`[data-i="${runIdx}"]`).focus();
+  });
+  function selectRun(i) {
+    runIdx = i;
+    for (const b of runsEl.querySelectorAll('.run')) { const on = +b.dataset.i === i; b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1; }
+    renderRun();
+  }
+
+  function traceBounds(r) {
+    if (r.walls.length) return arenaB;
+    const xs = [], ys = [];
+    for (const p of r.log) { xs.push(p.x); ys.push(p.y); }
+    for (const p of r.waypoints) { xs.push(p.x); ys.push(p.y); }
+    let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const pad = 0.35;
+    x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
+    if (y1 - y0 < 0.9) { const c = (y0 + y1) / 2; y0 = c - 0.45; y1 = c + 0.45; }
+    return { x0, x1, y0, y1 };
+  }
+
+  function drawTrace() {
+    const r = W[runIdx];
+    const { ctx, w, h } = prep(traceC);
+    const b = traceBounds(r);
+    const P = projector(b, w, h, 28);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = T.panel; ctx.fillRect(0, 0, w, h);
+    drawGrid(ctx, P, b, 0.5);
+    if (r.walls.length) drawWalls(ctx, P, r.walls);
+    const stalled = r.result.some(x => x.stalled);
+
+    // path actually driven
+    ctx.strokeStyle = T.text; ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    r.log.forEach((p, k) => { if (k === 0) ctx.moveTo(P.X(p.x), P.Y(p.y)); else ctx.lineTo(P.X(p.x), P.Y(p.y)); });
+    ctx.stroke();
+
+    // start marker
+    const s0 = r.log[0];
+    ctx.fillStyle = T.dim; ctx.beginPath(); ctx.arc(P.X(s0.x), P.Y(s0.y), 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.font = `500 10px ${T.mono}`; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('start', P.X(s0.x) + 7, P.Y(s0.y) + 6);
+
+    // waypoints: diamond, numbered, coloured by result
+    r.waypoints.forEach((wp, k) => {
+      const res = r.result[k];
+      const col = !res ? T.dim : res.stalled ? T.blocked : res.arrived ? T.good : T.blocked;
+      const x = P.X(wp.x), y = P.Y(wp.y);
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.fillStyle = res && res.arrived ? withAlpha(col, 0.25) : 'transparent';
+      ctx.beginPath(); ctx.moveTo(x, y - 8); ctx.lineTo(x + 8, y); ctx.lineTo(x, y + 8); ctx.lineTo(x - 8, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+      if (wp.heading != null) { // requested final heading tick
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(wp.heading) * 16, y - Math.sin(wp.heading) * 16); ctx.stroke();
+      }
+      ctx.fillStyle = col; ctx.font = `600 11px ${T.mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('wp ' + (k + 1), x, y - 11);
+    });
+
+    // final pose
+    const pe = r.log[r.log.length - 1];
+    drawBody(ctx, P, pe.x, pe.y, pe.th, stalled ? T.blocked : T.text, r.walls.length ? 0.18 : 0.11);
+    if (stalled) {
+      ctx.fillStyle = T.blocked; ctx.font = `600 11px ${T.mono}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(`stalled at ${pe.x.toFixed(2)}, ${pe.y.toFixed(2)}`, P.X(pe.x) + 0.16 * P.s, P.Y(pe.y));
+    }
+    scaleBar(ctx, P, w, h);
+  }
+
+  function drawSpeed() {
+    const r = W[runIdx];
+    const { ctx, w, h } = prep(speedC);
+    ctx.clearRect(0, 0, w, h);
+    const padL = 44, padR = 22, padT = 10, padB = 22;
+    const tEnd = r.log[r.log.length - 1].t;
+    const amax = Math.max(...r.log.map(p => Math.max(Math.abs(p.l), Math.abs(p.r))));
+    const ymax = Math.max(500, Math.ceil(amax / 500) * 500);
+    const X = (tt) => padL + (tt / tEnd) * (w - padL - padR);
+    const Y = (v) => padT + (1 - (v + ymax) / (2 * ymax)) * (h - padT - padB);
+    // grid + labels
+    ctx.font = `500 10px ${T.mono}`; ctx.fillStyle = T.dim; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+    ctx.strokeStyle = T.line; ctx.lineWidth = 1;
+    for (const v of [-ymax, -ymax / 2, 0, ymax / 2, ymax]) {
+      ctx.beginPath(); ctx.moveTo(padL, Y(v)); ctx.lineTo(w - padR, Y(v)); ctx.stroke();
+      ctx.fillText(String(v), padL - 6, Y(v));
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const step = tEnd > 12 ? 5 : tEnd > 4 ? 2 : 0.5;
+    for (let tt = 0; tt <= tEnd + 1e-9; tt += step) {
+      ctx.beginPath(); ctx.moveTo(X(tt), padT); ctx.lineTo(X(tt), h - padB); ctx.stroke();
+      ctx.fillText(tt.toFixed(step < 1 ? 1 : 0) + ' s', X(tt), h - padB + 5);
+    }
+    // zero line stronger
+    ctx.strokeStyle = T.dim; ctx.beginPath(); ctx.moveTo(padL, Y(0)); ctx.lineTo(w - padR, Y(0)); ctx.stroke();
+    // waypoint transitions
+    ctx.setLineDash([2, 3]); ctx.strokeStyle = T.dim; ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillStyle = T.dim;
+    for (let k = 1; k < r.log.length; k++) if (r.log[k].wp !== r.log[k - 1].wp) {
+      ctx.beginPath(); ctx.moveTo(X(r.log[k].t), padT); ctx.lineTo(X(r.log[k].t), h - padB); ctx.stroke();
+      ctx.fillText('wp ' + r.log[k].wp, X(r.log[k].t) + 3, padT);
+    }
+    ctx.setLineDash([]);
+    // stall shading: from the first command after which the pose stopped changing
+    if (r.result.some(x => x.stalled)) {
+      let k = r.log.length - 1;
+      while (k > 0 && r.log[k - 1].x === r.log[k].x && r.log[k - 1].y === r.log[k].y && r.log[k - 1].th === r.log[k].th) k--;
+      ctx.fillStyle = withAlpha(T.blocked, 0.14); ctx.fillRect(X(r.log[k].t), padT, X(tEnd) - X(r.log[k].t), h - padT - padB);
+      ctx.fillStyle = T.blocked; ctx.font = `600 10px ${T.mono}`; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillText('pose frozen', X(tEnd) - 3, padT);
+    }
+    // series
+    const line = (key, col, lw) => {
+      ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      r.log.forEach((p, k) => { const x = X(p.t), y = Y(p[key]); if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+      ctx.stroke();
+    };
+    line('r', T.dim, 1.6);
+    line('l', T.text, 1.6);
+    // endpoint labels
+    const last = r.log[r.log.length - 1];
+    ctx.font = `600 10px ${T.mono}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = T.text; ctx.fillText('l', X(tEnd) + 5, Y(last.l));
+    ctx.fillStyle = T.dim; ctx.fillText('r', X(tEnd) + 5, Y(last.r) + (Math.abs(Y(last.l) - Y(last.r)) < 10 ? 10 : 0));
+  }
+
+  function renderRun() {
+    const r = W[runIdx];
+    const stalled = r.result.some(x => x.stalled);
+    $('#trace-wrap').classList.toggle('stall', stalled);
+    // table
+    $('#results tbody').innerHTML = r.result.map((x, k) => {
+      const wp = r.waypoints[x.waypoint - 1] || r.waypoints[k];
+      return `<tr><td>${x.waypoint}</td><td>${wp.x.toFixed(2)}, ${wp.y.toFixed(2)}${wp.heading != null ? ' · θ ' + wp.heading.toFixed(2) : ''}</td>
+        <td class="${x.arrived ? 'ok' : 'bad'}">${x.arrived ? 'yes' : (x.stalled ? 'no · stalled' : 'no')}</td>
+        <td>${(x.gap_m * 100).toFixed(1)}</td><td>${x.seconds.toFixed(2)}</td></tr>`;
+    }).join('');
+    // note
+    const note = $('#trace-note');
+    note.classList.toggle('stall', stalled);
+    const s0 = r.log[0], pe = r.log[r.log.length - 1], tEnd = r.log[r.log.length - 1].t;
+    const cmds = `<span class="num">${r.log.length}</span> commands over <span class="num">${tEnd.toFixed(2)} s</span>`;
+    if (stalled) {
+      const res = r.result.find(x => x.stalled), wp = r.waypoints[res.waypoint - 1];
+      note.innerHTML = `<b>Stalling is the pass condition here.</b> Waypoint 1 at <span class="num">${wp.x.toFixed(1)}, ${wp.y.toFixed(1)}</span> lies on the far side of the corridor wall, so no path exists. The robot drove into the wall at <span class="num">${pe.x.toFixed(2)}, ${pe.y.toFixed(2)}</span>, its range to target stopped falling at <span class="num">${(res.gap_m * 100).toFixed(1)} cm</span>, and the controller declared a stall after <span class="num">${res.seconds.toFixed(1)} s</span> and stopped sending. A robot that keeps pushing a wall burns its motors and never reports failure. ${cmds}.`;
+    } else if (r.walls.length) {
+      const last = r.waypoints[r.waypoints.length - 1];
+      note.innerHTML = `Approach through room 1 to the corridor mouth. The final waypoint also requests a heading${last.heading != null ? ` of <span class="num">${last.heading.toFixed(2)} rad</span>` : ''}, so the robot squares up to the corridor before reporting arrival. ${cmds}.`;
+    } else if (Math.abs(s0.th) > Math.PI / 2) {
+      note.innerHTML = `The robot starts facing away from waypoint 1 (θ = <span class="num">${s0.th.toFixed(2)} rad</span>, bearing error <span class="num">${s0.bearing.toFixed(2)} rad</span>). Its first commands are a turn in place, l = <span class="num">${s0.l}</span>, r = <span class="num">${s0.r}</span>, before it drives. ${cmds}.`;
+    } else {
+      note.innerHTML = `A <span class="num">1 m</span> square, four corners in turn. Each corner is a stop, a turn in place (l and r diverge on the plot), then a straight leg. ${cmds}.`;
+    }
+    $('#plot-sub').textContent = `${r.label} · l/r in controller units, range ±4095 · ${r.log.length} samples`;
+    drawTrace(); drawSpeed();
+  }
+
+  /* ---------- tabs ---------- */
+  const tabs = [$('#tab-mission'), $('#tab-traces')];
+  function showTab(i) {
+    tabs.forEach((b, k) => { b.setAttribute('aria-selected', k === i); b.tabIndex = k === i ? 0 : -1; });
+    $('#view-mission').hidden = i !== 0;
+    $('#view-traces').hidden = i !== 1;
+    if (i === 1) { renderRun(); } else { render(); }
+  }
+  tabs.forEach((b, i) => b.addEventListener('click', () => showTab(i)));
+  document.querySelector('.tabs').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const i = tabs.findIndex(b => b.getAttribute('aria-selected') === 'true');
+    const n = (i + 1) % 2;
+    showTab(n); tabs[n].focus();
+  });
+
+  /* ---------- resize / redraw ---------- */
+  function redrawAll() {
+    if (!$('#view-mission').hidden) drawArena();
+    if (!$('#view-traces').hidden) { drawTrace(); drawSpeed(); }
+  }
+  let resizeT = null;
+  new ResizeObserver(() => { clearTimeout(resizeT); resizeT = setTimeout(redrawAll, 30); }).observe(document.body);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redrawAll);
+
+  /* ---------- boot ---------- */
+  // #t=9.5 opens the replay paused at that second (shareable moment)
+  const hm = /[#&]t=([\d.]+)/.exec(location.hash);
+  if (hm) { t = Math.min(DUR, Math.max(0, parseFloat(hm[1]))); playing = false; }
+  if (/[#&]view=traces/.test(location.hash)) showTab(1);
+  render();
+  renderRun();
+  setPlaying(playing);
+  if (!playing) playBtn.textContent = 'Play';
+})();
+</script>

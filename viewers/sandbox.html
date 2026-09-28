@@ -1,0 +1,613 @@
+<title>Crab Field Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#EEF3F2; --panel:#FFFFFF; --sunk:#E4ECEB; --line:#D3DFDE;
+  --text:#16262B; --dim:#5B7078;
+  --crab:#C4501F; --cyan:#1D8A8A; --good:#2F8F5B; --warn:#9A6B00; --blocked:#B03A36;
+  --unseen:#C6D2D0;
+  --sans:"IBM Plex Sans","Helvetica Neue",Arial,system-ui,sans-serif;
+  --mono:"IBM Plex Mono","SFMono-Regular",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --ground:#0A1317; --panel:#111D22; --sunk:#0C171B; --line:#1C2C33;
+  --text:#DCE7EA; --dim:#7C929A;
+  --crab:#F0703C; --cyan:#4FC4C4; --good:#64C08C; --warn:#E6B23C; --blocked:#D9534F;
+  --unseen:#2B3A40;
+  color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --ground:#0A1317; --panel:#111D22; --sunk:#0C171B; --line:#1C2C33;
+  --text:#DCE7EA; --dim:#7C929A;
+  --crab:#F0703C; --cyan:#4FC4C4; --good:#64C08C; --warn:#E6B23C; --blocked:#D9534F;
+  --unseen:#2B3A40;
+  color-scheme:dark; }
+
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--ground);color:var(--text);font-family:var(--sans);
+     font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1140px;margin:0 auto;padding-inline:20px;padding-block:32px 60px}
+.eyebrow{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.16em;
+         text-transform:uppercase;color:var(--dim);margin:0}
+h1{margin:6px 0 6px;font-size:28px;font-weight:600;letter-spacing:-.02em;text-wrap:balance}
+.thesis{margin:0 0 22px;color:var(--dim);font-size:15px;max-width:66ch}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+.bar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;
+     padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-radius:4px}
+.bar label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+           text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:7px}
+button{font:inherit;font-size:13px;padding:5px 12px;border:1px solid var(--line);
+       background:var(--sunk);color:var(--text);border-radius:3px;cursor:pointer}
+button:hover{border-color:var(--cyan)}
+button[aria-pressed="true"]{background:var(--cyan);border-color:var(--cyan);color:#06181A}
+input[type=range]{width:98px;accent-color:var(--cyan)}
+.seg{display:flex;gap:0}
+.seg button{border-radius:0;margin-left:-1px}
+.seg button:first-child{border-radius:3px 0 0 3px;margin-left:0}
+.seg button:last-child{border-radius:0 3px 3px 0}
+
+.stage{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:4px;
+       padding:10px;position:relative}
+canvas{display:block;width:100%;height:auto;border-radius:3px;background:var(--sunk)}
+
+/* legend: three rows a newcomer can scan top to bottom -- what the ground
+   colours mean, what the crabs believe, what the push planner draws */
+.legend{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin-top:10px;
+        font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--dim);
+        align-items:baseline}
+.legend .lg{font-size:9px;letter-spacing:.16em;text-transform:uppercase;font-weight:500;
+            padding-top:1px}
+.legend .row{display:flex;flex-wrap:wrap;gap:3px 15px;min-width:0}
+.legend .row>span{white-space:nowrap}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;
+          vertical-align:-1px}
+.legend i.box{background:rgba(154,107,0,.30);border:1.5px solid var(--warn)}
+.legend i.cone{width:13px;height:10px;border-radius:0;vertical-align:-2px;
+               clip-path:polygon(0 50%,100% 0,100% 100%);
+               background:linear-gradient(90deg,var(--crab) 0%,color-mix(in srgb,var(--crab) 25%,transparent) 100%)}
+.legend i.blob{border-radius:50%;width:11px;height:11px;vertical-align:-2px;
+               background:color-mix(in srgb,var(--good) 55%,transparent)}
+.legend i.star{width:11px;height:11px;border-radius:0;vertical-align:-2px;background:var(--good);
+               clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+.legend i.route{height:2px;border-radius:0;width:14px;
+                background:linear-gradient(90deg,#F0703C,#4FC4C4,#C9A227)}
+.legend i.stagept{border:1.5px solid var(--warn);background:none;border-radius:1px}
+.legend i.turn{width:11px;height:11px;border-radius:50%;background:none;vertical-align:-2px;
+               border:1.5px dashed var(--warn);border-left-color:transparent;border-bottom-color:transparent}
+
+.cols{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-top:12px}
+@media (max-width:820px){ .cols{grid-template-columns:1fr} }
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:13px 14px}
+h2{margin:0 0 9px;font-size:10px;font-family:var(--mono);letter-spacing:.14em;
+   text-transform:uppercase;color:var(--dim);font-weight:500}
+
+.crab{display:grid;grid-template-columns:auto 1fr auto;gap:2px 10px;align-items:baseline;
+      padding:8px 0;border-top:1px solid var(--line)}
+.crab:first-of-type{border-top:0}
+.dot{width:9px;height:9px;border-radius:2px;align-self:center}
+.cname{font-family:var(--mono);font-size:12px;font-weight:500}
+.chips{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.cmode{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+       padding:2px 6px;border:1px solid currentColor;border-radius:3px;white-space:nowrap}
+.cnote{grid-column:2/4;color:var(--dim);font-size:12.5px}
+.m-PUSH{color:var(--crab)} .m-GOTO{color:var(--good)} .m-SCOUT{color:var(--cyan)}
+.m-EXPLORE{color:var(--cyan)} .m-UNBLOCK{color:var(--crab)}
+.m-UNSTICK{color:var(--warn)} .m-IDLE{color:var(--dim)}
+.m-AT{color:var(--good)} .m-STAND{color:var(--dim)} .m-STAGE{color:var(--warn)}
+.m-REV{color:var(--warn);background:color-mix(in srgb,var(--warn) 16%,transparent)}
+.job{font-family:var(--mono);font-size:9px;letter-spacing:.1em;margin-left:8px;
+     padding:1px 5px;border-radius:2px;background:color-mix(in srgb,var(--dim) 18%,transparent);
+     color:var(--dim)}
+
+.reads{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:9px 14px;
+       margin-bottom:11px}
+.reads div{display:flex;flex-direction:column;gap:1px}
+.reads dt{font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;
+          text-transform:uppercase;color:var(--dim)}
+.reads dd{margin:0;font-family:var(--mono);font-size:16px;font-variant-numeric:tabular-nums}
+.reads dd.good{color:var(--good)}
+#r-belief-w{grid-column:span 2} #r-belief{white-space:nowrap}
+
+.verdict{margin-top:10px;padding:10px 12px;border-radius:3px;background:var(--sunk);
+         border-left:3px solid var(--line);font-size:13px}
+.verdict.push{border-left-color:var(--crab)}
+.verdict.walk{border-left-color:var(--good)}
+.verdict b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600}
+.log{font-family:var(--mono);font-size:11.5px;line-height:1.75;max-height:186px;
+     overflow-y:auto;color:var(--dim)}
+.log b{color:var(--text);font-weight:500}
+.log .t{color:var(--cyan)}
+.foot{margin-top:20px;color:var(--dim);font-size:12.5px;max-width:70ch}
+.foot code{font-family:var(--mono);font-size:12px;
+           background:color-mix(in srgb,var(--dim) 14%,transparent);padding:1px 5px;border-radius:3px}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Crab Team N &middot; field sandbox</p>
+  <h1>Why a crab decides to move the box</h1>
+  <p class="thesis">Three goals can be open at once &mdash; <b>UNBLOCK</b>, <b>EXPLORE</b>,
+     <b>REACH</b> &mdash; and every open goal must have an owner. Ownership is latched: a crab
+     that starts a shove finishes it. A crab holding REACH while the reward is still walled off
+     neither idles nor scouts; it <b>stages</b> at the gap, because the route that will exist
+     once the box moves is the shortest one it has.</p>
+
+  <div class="bar">
+    <label>Crabs <span class="seg" id="segN"></span></label>
+    <label>Other way in <span class="seg" id="segSeal"></span></label>
+    <label>Speed <input type="range" id="spd" min="1" max="8" step="1" value="3"><span class="num" id="spdv">3&times;</span></label>
+    <label>Show <span class="seg" id="segOv"></span></label>
+    <button id="run" aria-pressed="true">Pause</button>
+    <button id="rst">Restart</button>
+  </div>
+
+  <div class="stage">
+    <canvas id="cv" width="1200" height="800"></canvas>
+    <div class="legend">
+      <span class="lg">Field</span>
+      <span class="row">
+        <span><i style="background:#4FC4C4"></i>near the reward</span>
+        <span><i style="background:#F0703C"></i>far from it</span>
+        <span><i style="background:rgba(176,58,54,.8)"></i>seen, cut off</span>
+        <span><i style="background:var(--unseen)"></i>never seen &mdash; assumed open</span>
+        <span><i style="background:#E6B23C"></i>frontier</span>
+        <span><i class="box"></i>the box</span>
+      </span>
+      <span class="lg">Belief</span>
+      <span class="row">
+        <span><i class="cone"></i>what a crab sees &mdash; <span id="lg-fov">30&deg;</span> cone</span>
+        <span><i class="blob"></i>where the reward could still be</span>
+        <span><i class="star"></i>the reward, once seen</span>
+        <span><i class="route"></i>route it will drive, in its colour</span>
+        <span><i class="stagept"></i>where it will stage for the gap</span>
+        <span><i class="turn"></i>tightest turn while backing up</span>
+      </span>
+      <span class="lg">Push</span>
+      <span class="row">
+        <span><i style="border:1.5px solid #64C08C;background:none"></i>placement it has seen &mdash; certain</span>
+        <span><i style="border:1.5px dashed #E6B23C;background:none"></i>placement it cannot see &mdash; maybe</span>
+        <span><i style="border:2px solid #F0703C;background:none"></i>the placement it chose</span>
+        <span><i style="background:#F0703C;height:2px;border-radius:0"></i>the push axis it aligns to</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>Crabs</h2>
+      <div id="crabs"></div>
+    </div>
+    <div class="card">
+      <h2>The decision</h2>
+      <dl class="reads">
+        <div><dt>Clock</dt><dd id="r-clock">0.0 s</dd></div>
+        <div><dt>Seen</dt><dd id="r-seen">0%</dd></div>
+        <div id="r-belief-w" hidden><dt id="r-belief-t">Reward could be in</dt><dd id="r-belief">&ndash;</dd></div>
+        <div><dt>Box moved</dt><dd id="r-box">0.00 m</dd></div>
+        <div><dt>Plan cost</dt><dd id="r-ms">0.0 ms</dd></div>
+      </dl>
+      <div class="verdict" id="verdict">Waiting for the first field.</div>
+      <h2 style="margin-top:14px">Log</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <p class="foot">The arena is drawn for the chassis, not for a point: every gap is 0.90&nbsp;m,
+     which leaves a 0.56&nbsp;m planning band once the 0.17&nbsp;m margin is taken off each wall.
+     A crab is a 0.20&nbsp;&times;&nbsp;0.15&nbsp;m rectangle and collides as one. It sees a
+     <span class="num" id="f-fov">30&deg;</span> cone out to <span class="num" id="f-sight">0.80&nbsp;m</span><span
+     id="f-turn-s">, and it steers rather than pivots: the tightest turn is
+     <span class="num" id="f-turn">0.34&nbsp;m</span>, so a target more than
+     <span class="num" id="f-rev">109&deg;</span> off its nose is reached by backing up</span>.
+     The box moves only when a crab drives <em>into</em> it &mdash; touching it side-on does nothing.
+     Source: <code>viewers/sandbox.html</code>, <code>sb_core.js</code>, <code>sb_sim.js</code>.</p>
+</div>
+
+<script src="sb_core.js"></script>
+<script src="sb_sim.js"></script>
+<script>
+(function(){
+var cv=document.getElementById("cv"), cx=cv.getContext("2d");
+var fieldCv=document.createElement("canvas"), fctx;
+fieldCv.width=NX; fieldCv.height=NY; fctx=fieldCv.getContext("2d");
+var img=fctx.createImageData(NX,NY);
+/* second small canvas for the reward belief, drawn smoothed so it reads as a
+   region and not as a grid */
+var belCv=document.createElement("canvas"), bctx;
+belCv.width=NX; belCv.height=NY; bctx=belCv.getContext("2d");
+var bimg=bctx.createImageData(NX,NY);
+
+var N=3, running=true, speed=3, overlay="field";
+var hash=(location.hash||"").toLowerCase();
+var startSealed=hash.indexOf("open")<0;   /* the push is the point; show it */
+if(hash.indexOf("fast")>=0) speed=8;
+var css=getComputedStyle(document.documentElement);
+function tok(n){ return css.getPropertyValue(n).trim(); }
+function refreshTokens(){ css=getComputedStyle(document.documentElement); }
+
+/* ---- the model's newer globals, read defensively: the view may render
+   before the sim exposes them ---- */
+function fovDeg(){ return (typeof FOV_DEG==="number")?FOV_DEG:30; }
+function sightM(){ return (typeof SIGHT==="number")?SIGHT:0.80; }
+function turnR(){ return (typeof TURN_R==="number")?TURN_R:0; }
+function hasBelief(){ return typeof rewardBelief!=="undefined" && !!rewardBelief && rewardBelief.length===NX*NY; }
+function isFound(){ return (typeof rewardFound==="boolean")?rewardFound:true; }
+
+/* per-colour fill strings, built once: the cone is four stacked wedges whose
+   alphas add up near the crab and thin out toward the edge of sight */
+var rgbCache={};
+function tint(col){
+  var c=rgbCache[col]; if(c) return c;
+  var h=col.charAt(0)==="#"?col.slice(1):col;
+  var r=parseInt(h.substr(0,2),16), g=parseInt(h.substr(2,2),16), b=parseInt(h.substr(4,2),16);
+  var s="rgba("+r+","+g+","+b+",";
+  c={ band:[s+".05)",s+".06)",s+".08)",s+".11)"], edge:s+".55)", soft:s+".35)" };
+  rgbCache[col]=c; return c;
+}
+var BANDS=[1,.72,.48,.28];
+/* unit star, ten vertices, computed once */
+var STAR=[]; (function(){ for(var k=0;k<10;k++){ var a=-Math.PI/2+k*Math.PI/5, r=k%2?.46:1; STAR.push(Math.cos(a)*r, Math.sin(a)*r); } })();
+function starPath(x,y,R){
+  cx.beginPath();
+  for(var k=0;k<20;k+=2){ var px=x+STAR[k]*R, py=y+STAR[k+1]*R; if(k) cx.lineTo(px,py); else cx.moveTo(px,py); }
+  cx.closePath();
+}
+
+function seg(host,opts,get,set){
+  host.innerHTML="";
+  opts.forEach(function(o){
+    var b=document.createElement("button");
+    b.textContent=o.label; b.type="button";
+    b.setAttribute("aria-pressed", get()===o.value ? "true":"false");
+    b.onclick=function(){ set(o.value); seg(host,opts,get,set); };
+    host.appendChild(b);
+  });
+}
+seg(document.getElementById("segN"),
+    [1,2,3,4,5].map(function(n){return {label:String(n),value:n};}),
+    function(){return N;}, function(v){ N=v; boot(); });
+var segSeal=document.getElementById("segSeal");
+function drawSeal(){ seg(segSeal, [{label:"exists",value:false},{label:"sealed off",value:true}],
+    function(){return sealed;}, function(v){ boot(v); drawSeal(); }); }
+drawSeal();
+seg(document.getElementById("segOv"),
+    [{label:"field",value:"field"},{label:"seen",value:"seen"},{label:"off",value:"off"}],
+    function(){return overlay;}, function(v){ overlay=v; });
+
+var runBtn=document.getElementById("run");
+runBtn.onclick=function(){ running=!running;
+  runBtn.textContent=running?"Pause":"Run";
+  runBtn.setAttribute("aria-pressed",running?"true":"false"); };
+document.getElementById("rst").onclick=function(){ boot(); };
+var spd=document.getElementById("spd"), spdv=document.getElementById("spdv");
+spd.oninput=function(){ speed=+spd.value; spdv.textContent=speed+"×"; };
+
+/* belief bookkeeping owned by the view: how many cells survive, how many
+   there were at the start, and when the star was first seen */
+var belN=0, belMax=0, belStamp=-2, foundAt=-1;
+function boot(seal){
+  reset(N, seal===undefined?sealed:seal);
+  belN=0; belMax=0; belStamp=-2; foundAt=-1;
+  paint();
+}
+
+function setText(id,s){ var e=document.getElementById(id); if(e) e.textContent=s; }
+function fillFacts(){
+  var f=fovDeg()+"°";
+  setText("lg-fov",f); setText("f-fov",f);
+  setText("f-sight",sightM().toFixed(2)+" m");
+  var ts=document.getElementById("f-turn-s");
+  if(turnR()>0){
+    ts.hidden=false;
+    setText("f-turn",turnR().toFixed(2)+" m");
+    if(typeof REV_AT==="number") setText("f-rev",Math.round(REV_AT*180/Math.PI)+"°");
+  } else ts.hidden=true;
+}
+
+/* ---- field image: dim what has never been seen, saturate what has ---- */
+function paintField(){
+  var d=img.data, i, mx=0;
+  for(i=0;i<dist.length;i++) if(isFinite(dist[i])&&dist[i]>mx) mx=dist[i];
+  if(mx<=0) mx=1;
+  var dark = tok("--ground").indexOf("#0")===0 || tok("--ground").indexOf("#1")===0;
+  for(i=0;i<NX*NY;i++){
+    var p=i*4, r,g,b,a;
+    if(known[i]===UNKNOWN){                       /* assumed open, never looked at */
+      r=dark?28:198; g=dark?42:210; b=dark?48:208; a=dark?150:120;
+    } else if(known[i]===BLOCKED){
+      r=dark?10:120; g=dark?20:134; b=dark?24:138; a=235;
+    } else if(overlay==="seen"){
+      r=dark?40:150; g=dark?150:205; b=dark?150:203; a=175;
+    } else if(!isFinite(dist[i])){                /* seen, and provably cut off */
+      r=176; g=58; b=54; a=110;
+    } else {
+      var t=Math.min(1,dist[i]/mx);               /* cyan near -> orange far */
+      r=Math.round(79+(240-79)*t); g=Math.round(196+(112-196)*t); b=Math.round(196+(60-196)*t);
+      a=205;
+    }
+    if(frontier[i]){ r=230; g=178; b=60; a=255; }
+    d[p]=r; d[p+1]=g; d[p+2]=b; d[p+3]=a;
+  }
+  fctx.putImageData(img,0,0);
+}
+
+/* ---- belief image: every cell the reward could still be in. Repainted only
+   when the survivor count changes (or every frame if the sim gives no count) */
+function paintBelief(){
+  var stamp=(typeof nRewardBelief==="number")?nRewardBelief:-1;
+  if(stamp>=0&&stamp===belStamp) return;
+  var d=bimg.data, n=0;
+  for(var i=0;i<NX*NY;i++){
+    var p=i*4;
+    if(rewardBelief[i]){ n++; d[p]=100; d[p+1]=192; d[p+2]=140; d[p+3]=125; }
+    else d[p+3]=0;
+  }
+  bctx.putImageData(bimg,0,0);
+  belN=n; belStamp=stamp;
+  if(n>belMax) belMax=n;
+}
+
+function paint(){
+  refreshTokens();
+  var W=cv.width, H=cv.height, S=Math.min(W/AW,H/AH);
+  var ox=(W-AW*S)/2, oy=(H-AH*S)/2;
+  function X(x){ return ox+x*S; }
+  function Y(y){ return oy+(AH-y)*S; }      /* y up */
+  var i, b, k;
+
+  cx.setTransform(1,0,0,1,0,0);
+  cx.fillStyle=tok("--sunk"); cx.fillRect(0,0,W,H);
+
+  if(overlay!=="off"){
+    paintField();
+    cx.imageSmoothingEnabled=false;
+    cx.save(); cx.translate(ox,oy+AH*S); cx.scale(1,-1);
+    cx.drawImage(fieldCv,0,0,AW*S,AH*S); cx.restore();
+  }
+
+  /* where the reward could still be: a soft green region that shrinks as the
+     crabs look and fail to find it */
+  var belief=hasBelief(), found=isFound();
+  if(belief&&!found){
+    paintBelief();
+    cx.imageSmoothingEnabled=true;
+    cx.save(); cx.translate(ox,oy+AH*S); cx.scale(1,-1); cx.globalAlpha=.9;
+    cx.drawImage(belCv,0,0,AW*S,AH*S); cx.restore(); cx.globalAlpha=1;
+  }
+
+  /* imagined placements -- the field of possibilities */
+  var lead=null;
+  for(i=0;i<bots.length;i++) if(bots[i].job==="UNBLOCK"&&bots[i].cands&&bots[i].cands.cands.length) lead=bots[i];
+  if(lead){
+    var C=lead.cands, best=C.best;
+    var lo=Infinity, hi=-Infinity;
+    C.cands.forEach(function(c){ if(isFinite(c.total)){ if(c.total<lo)lo=c.total; if(c.total>hi)hi=c.total; } });
+    cx.lineWidth=1.4;
+    C.cands.forEach(function(c){
+      if(!isFinite(c.total)) return;
+      var t=hi>lo?(c.total-lo)/(hi-lo):0, a=(0.70-0.45*t).toFixed(2);
+      /* green: the crab has seen the whole sweep, so it knows the box can go
+         there. yellow: it cannot see past the box, so a wall may be hiding. */
+      cx.setLineDash(c.certain?[]:[4,3]);
+      cx.strokeStyle=(c.certain?"rgba(100,192,140,":"rgba(230,178,60,")+a+")";
+      cx.strokeRect(X(c.x-box.w/2),Y(c.y+box.h/2),box.w*S,box.h*S);
+    });
+    cx.setLineDash([]);
+    if(best){
+      cx.strokeStyle=tok("--crab"); cx.lineWidth=2.4;
+      cx.strokeRect(X(best.x-box.w/2),Y(best.y+box.h/2),box.w*S,box.h*S);
+      cx.beginPath(); cx.moveTo(X(box.x),Y(box.y)); cx.lineTo(X(best.x),Y(best.y));
+      cx.stroke();
+    }
+  }
+
+  /* walls */
+  cx.strokeStyle=tok("--text"); cx.lineWidth=3.4; cx.lineCap="round";
+  var A=activeWalls();
+  for(i=0;i<A.length;i++){
+    cx.beginPath(); cx.moveTo(X(A[i][0]),Y(A[i][1])); cx.lineTo(X(A[i][2]),Y(A[i][3])); cx.stroke();
+  }
+
+  /* what each crab can see: a wedge +-FOV/2 about its heading, out to SIGHT,
+     brightest at the crab. Drawn under the box and the chassis. */
+  var half=fovDeg()*Math.PI/360, R=sightM()*S;
+  for(i=0;i<bots.length;i++){
+    b=bots[i]; var tc=tint(b.col), px=X(b.x), py=Y(b.y), a0=-b.th-half, a1=-b.th+half;
+    for(k=0;k<4;k++){
+      cx.fillStyle=tc.band[k];
+      cx.beginPath(); cx.moveTo(px,py); cx.arc(px,py,R*BANDS[k],a0,a1); cx.closePath(); cx.fill();
+    }
+    cx.strokeStyle=tc.edge; cx.lineWidth=1;
+    cx.beginPath(); cx.moveTo(px,py); cx.arc(px,py,R,a0,a1); cx.closePath(); cx.stroke();
+  }
+
+  /* the reward: a star only once a crab has actually seen it */
+  if(found){
+    if(belief&&foundAt<0) foundAt=clock;
+    var gx=X(GOAL.x), gy=Y(GOAL.y);
+    cx.fillStyle=tok("--good"); starPath(gx,gy,10); cx.fill();
+    cx.strokeStyle=tok("--good"); cx.lineWidth=1.4; cx.globalAlpha=.5;
+    cx.beginPath(); cx.arc(gx,gy,16,0,6.2832); cx.stroke(); cx.globalAlpha=1;
+    var age=belief?clock-foundAt:9;
+    if(age<1.8){                                 /* the collapse: one ring, out and gone */
+      cx.globalAlpha=(1-age/1.8)*.85; cx.lineWidth=2.5;
+      cx.beginPath(); cx.arc(gx,gy,16+age*70,0,6.2832); cx.stroke(); cx.globalAlpha=1;
+    }
+  }
+
+  /* the box */
+  cx.fillStyle="rgba(154,107,0,.30)"; cx.strokeStyle=tok("--warn"); cx.lineWidth=2;
+  cx.fillRect(X(box.x-box.w/2),Y(box.y+box.h/2),box.w*S,box.h*S);
+  cx.strokeRect(X(box.x-box.w/2),Y(box.y+box.h/2),box.w*S,box.h*S);
+
+  /* crabs */
+  var TR=turnR();
+  for(i=0;i<bots.length;i++){
+    b=bots[i];
+    cx.strokeStyle=b.col; cx.globalAlpha=.42; cx.lineWidth=1.3;
+    cx.beginPath();
+    for(k=0;k<b.trail.length;k++){
+      var p=b.trail[k];
+      if(k===0) cx.moveTo(X(p[0]),Y(p[1])); else cx.lineTo(X(p[0]),Y(p[1]));
+    }
+    cx.stroke(); cx.globalAlpha=1;
+
+    if(b.path && b.wi<b.path.length){
+      cx.strokeStyle=b.col; cx.globalAlpha=.8; cx.lineWidth=1.6;
+      cx.lineJoin="round";
+      cx.beginPath(); cx.moveTo(X(b.x),Y(b.y));
+      for(var w=b.wi;w<b.path.length;w++) cx.lineTo(X(b.path[w].x),Y(b.path[w].y));
+      cx.stroke(); cx.globalAlpha=1;
+      var last=b.path[b.path.length-1];
+      if(b.mode==="STAGE"){                        /* the spot it will wait in */
+        cx.strokeStyle=tok("--warn"); cx.lineWidth=1.5;
+        cx.strokeRect(X(last.x)-4.5,Y(last.y)-4.5,9,9);
+      } else {
+        cx.fillStyle=b.col; cx.globalAlpha=.9;
+        cx.beginPath(); cx.arc(X(last.x),Y(last.y),3,0,6.2832); cx.fill();
+        cx.globalAlpha=1;
+      }
+    }
+
+    if(b.mode==="PUSH"&&b.axis){
+      var ax=b.axis;
+      cx.strokeStyle=tok("--crab"); cx.globalAlpha=.45; cx.lineWidth=1;
+      cx.setLineDash([2,5]);
+      cx.beginPath();
+      cx.moveTo(X(ax.x-ax.dx*0.6),Y(ax.y-ax.dy*0.6));
+      cx.lineTo(X(ax.x+ax.dx*1.6),Y(ax.y+ax.dy*1.6));
+      cx.stroke(); cx.setLineDash([]); cx.globalAlpha=1;
+    }
+
+    /* backing up: the tightest circle it can drive, on the side it is turning
+       to. The target is behind it and this arc is why it cannot simply swing
+       round to face it. */
+    var rev=!!b.reversing;
+    if(rev&&TR>0&&typeof b.om==="number"&&typeof b.v==="number"&&b.om!==0){
+      var side=(b.v*b.om)>=0?1:-1;
+      var ccx=b.x-side*Math.sin(b.th)*TR, ccy=b.y+side*Math.cos(b.th)*TR;
+      var ph=b.th-side*Math.PI/2;                 /* the crab's angle on that circle */
+      cx.strokeStyle=tok("--warn"); cx.globalAlpha=.55; cx.lineWidth=1.2; cx.setLineDash([3,4]);
+      cx.beginPath(); cx.arc(X(ccx),Y(ccy),TR*S,-(ph+1.9),-(ph-1.9)); cx.stroke();
+      cx.setLineDash([]); cx.globalAlpha=1;
+    }
+
+    cx.save();
+    cx.translate(X(b.x),Y(b.y)); cx.rotate(-b.th);
+    if(rev){                                       /* reverse lights: a warn ring round the chassis */
+      cx.strokeStyle=tok("--warn"); cx.lineWidth=2;
+      cx.strokeRect(-BOT_L/2*S-2,-BOT_W/2*S-2,BOT_L*S+4,BOT_W*S+4);
+    }
+    cx.fillStyle=b.col;
+    cx.fillRect(-BOT_L/2*S,-BOT_W/2*S,BOT_L*S,BOT_W*S);
+    cx.fillStyle=tok("--panel");
+    cx.fillRect((BOT_L/2-0.035)*S,-0.018*S,0.030*S,0.036*S);   /* the eye, facing forward */
+    if(rev){                                       /* and a chevron pointing out the back */
+      cx.strokeStyle=tok("--panel"); cx.lineWidth=Math.max(1.5,0.012*S); cx.lineJoin="miter";
+      cx.beginPath();
+      cx.moveTo(-0.035*S,-0.045*S); cx.lineTo(-0.075*S,0); cx.lineTo(-0.035*S,0.045*S);
+      cx.stroke();
+    }
+    cx.restore();
+  }
+  cx.setTransform(1,0,0,1,0,0);
+}
+
+var lastNarr=0, lastCrabs="", lastVerdict="";
+function paintPanels(){
+  document.getElementById("r-clock").textContent=clock.toFixed(1)+" s";
+  document.getElementById("r-seen").textContent=(explored()*100).toFixed(0)+"%";
+  document.getElementById("r-box").textContent=
+    Math.hypot(box.x-BOX0.x,box.y-BOX0.y).toFixed(2)+" m";
+  document.getElementById("r-ms").textContent=planMs.toFixed(planMs<10?2:1)+" ms";
+
+  var bw=document.getElementById("r-belief-w");
+  if(hasBelief()){
+    bw.hidden=false;
+    var bt=document.getElementById("r-belief-t"), bd=document.getElementById("r-belief");
+    if(isFound()){
+      bt.textContent="Reward"; bd.className="good";
+      bd.textContent="seen at "+(foundAt<0?clock:foundAt).toFixed(1)+" s";
+    } else {
+      bt.textContent="Reward could be in"; bd.className="";
+      bd.textContent=belN+" of "+belMax+" cells";
+    }
+  } else bw.hidden=true;
+
+  var host=document.getElementById("crabs"), html="";
+  for(var i=0;i<bots.length;i++){
+    var b=bots[i], m=b.mode.split(" ")[0];
+    html+='<div class="crab"><span class="dot" style="background:'+b.col+'"></span>'+
+          '<span class="cname">crab '+(b.id+1)+'<span class="job">'+(b.job||"--")+'</span></span>'+
+          '<span class="chips"><span class="cmode m-'+m+'">'+b.mode+'</span>'+
+          (b.reversing?'<span class="cmode m-REV">reversing</span>':'')+'</span>'+
+          '<span class="cnote">'+b.note+'</span></div>';
+  }
+  if(html!==lastCrabs){ host.innerHTML=html; lastCrabs=html; }
+
+  var v=document.getElementById("verdict"), lead=null, vc="", vh="";
+  for(i=0;i<bots.length;i++) if(bots[i].job==="UNBLOCK") lead=bots[i];
+  if(lead&&lead.cands&&lead.cands.best){
+    var c=lead.cands.best;
+    vc="verdict push";
+    vh="Crab "+(lead.id+1)+" cannot reach the reward: the box seals the only doorway. "+
+      "Of <b>"+lead.cands.cands.length+"</b> placements it imagined, <b>"+
+      lead.cands.cands.filter(function(q){return q.vacates;}).length+
+      "</b> clear the gap (<b>"+lead.cands.cands.filter(function(q){return q.vacates&&q.certain;}).length+
+      "</b> of them seen, the rest maybes). It chose a "+(c.certain?"seen":"maybe")+
+      " one: walk <b>"+c.walk.toFixed(1)+" m</b>, shove <b>"+c.len.toFixed(2)+
+      " m</b>, room on landing <b>"+(c.freedom*100).toFixed(0)+"%</b>.";
+  } else {
+    var near=null, nv=Infinity;
+    for(i=0;i<bots.length;i++) if(bots[i].cost<nv){ nv=bots[i].cost; near=bots[i]; }
+    if(near&&isFinite(nv)){
+      vc="verdict walk";
+      vh="Crab "+(near.id+1)+" believes it is <b>"+nv.toFixed(1)+
+        " m</b> from the reward, so no crab has opened UNBLOCK. "+(sealed
+          ? "The other way in is sealed, so that belief runs through ground nobody has looked at yet; it will not survive contact."
+          : "With the other way in open, the detour costs less than the shove.");
+    } else { vc="verdict"; vh="Mapping the arena."; }
+  }
+  if(vh!==lastVerdict){ v.className=vc; v.innerHTML=vh; lastVerdict=vh; }
+
+  if(narration.length!==lastNarr){
+    lastNarr=narration.length;
+    document.getElementById("log").innerHTML=narration.slice().reverse().map(function(n){
+      return '<div><span class="t">'+n.t.toFixed(1)+'s</span> '+n.s+'</div>';
+    }).join("");
+  }
+}
+
+function size(){
+  var w=cv.parentElement.clientWidth-20;
+  if(w<80) return;
+  var dpr=Math.min(2,window.devicePixelRatio||1);
+  var cw=Math.round(w*dpr), ch=Math.round(w/AW*AH*dpr);
+  if(cv.width!==cw||cv.height!==ch){ cv.width=cw; cv.height=ch; }   /* resizing clears; only when needed */
+  cv.style.height=Math.round(w/AW*AH)+"px";
+}
+window.addEventListener("resize",function(){ size(); paint(); });
+
+var acc=0, prev=performance.now();
+function loop(now){
+  var dt=(now-prev)/1000; prev=now;
+  if(!(dt>0)) dt=0;
+  if(dt>0.25) dt=0.25;                 /* a hidden tab must not bank time */
+  if(running&&!reached){
+    acc+=dt*speed;
+    var n=0;
+    while(acc>=1/60&&n<24){ tick(1/60); acc-=1/60; n++; }
+    if(acc>1) acc=1;
+  } else acc=0;
+  size(); paint(); paintPanels();
+  requestAnimationFrame(loop);
+}
+size(); document.getElementById("spd").value=speed;
+document.getElementById("spdv").textContent=speed+"×";
+fillFacts(); boot(startSealed); drawSeal(); requestAnimationFrame(loop);
+})();
+</script>

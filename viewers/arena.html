@@ -1,0 +1,1353 @@
+<title>Arena Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* ---------- tokens: dark-first instrument panel (shared with sibling viewers) ---------- */
+  :root {
+    color-scheme: dark;
+    --ground:  #0A1317;
+    --panel:   #111D22;
+    --inset:   #0D181C;
+    --line:    #1C2C33;
+    --text:    #DCE7EA;
+    --dim:     #7C929A;
+    --crab:    #F0703C;
+    --cyan:    #4FC4C4;
+    --crab3:   #B394E3;
+    --good:    #64C08C;
+    --warn:    #E6B23C;
+    --blocked: #D9534F;
+    --focus:   #4FC4C4;
+    --on-accent: #0A1317;
+    --sans: "IBM Plex Sans", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --ground:  #EEF3F2;
+      --panel:   #FFFFFF;
+      --inset:   #F4F8F7;
+      --line:    #D3DFDE;
+      --text:    #16262B;
+      --dim:     #5B6F75;
+      --crab:    #C9541F;
+      --cyan:    #1E8E8E;
+      --crab3:   #7650B3;
+      --good:    #2E8B57;
+      --warn:    #A8760E;
+      --blocked: #C0392B;
+      --focus:   #1E8E8E;
+      --on-accent: #FFFFFF;
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --ground:  #EEF3F2;
+    --panel:   #FFFFFF;
+    --inset:   #F4F8F7;
+    --line:    #D3DFDE;
+    --text:    #16262B;
+    --dim:     #5B6F75;
+    --crab:    #C9541F;
+    --cyan:    #1E8E8E;
+    --crab3:   #7650B3;
+    --good:    #2E8B57;
+    --warn:    #A8760E;
+    --blocked: #C0392B;
+    --focus:   #1E8E8E;
+    --on-accent: #FFFFFF;
+  }
+
+  /* ---------- base ---------- */
+  * { box-sizing: border-box; }
+  html { height: 100%; }
+  body {
+    margin: 0;
+    height: 100vh; height: 100dvh;
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.45;
+    overflow: hidden;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  h1, h2, h3, p, ul { margin: 0; }
+  ul { padding: 0; list-style: none; }
+  .mono, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 500;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim);
+  }
+  kbd {
+    font: 500 10.5px/16px var(--mono); color: var(--dim);
+    border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; background: var(--inset);
+  }
+
+  /* ---------- app frame ---------- */
+  .app {
+    height: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 372px;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "top top" "stage side";
+  }
+  .top {
+    grid-area: top;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 7px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .brand { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; margin-right: 4px; }
+  .brand strong { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; white-space: nowrap; }
+
+  .tools { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 7px; background: var(--ground); flex-wrap: wrap; }
+  .tool {
+    display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 9px 0 8px;
+    border: 0; border-radius: 5px; background: transparent; color: var(--dim);
+    font-weight: 500; font-size: 13px; white-space: nowrap;
+  }
+  .tool svg { width: 15px; height: 15px; flex: none; }
+  .tool:hover { color: var(--text); }
+  .tool[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
+  .tool[aria-pressed="true"] kbd { color: var(--text); }
+
+  .top-right { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .size { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--dim); }
+  .size input { width: 58px; }
+  .hist { display: inline-flex; gap: 2px; }
+
+  input[type="number"], input[type="text"], select, textarea {
+    font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums;
+    color: var(--text); background: var(--inset);
+    border: 1px solid var(--line); border-radius: 5px; padding: 4px 7px; height: 30px; min-width: 0;
+  }
+  input[type="number"]:focus, select:focus, textarea:focus { border-color: var(--focus); outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 30%, transparent); }
+  textarea { height: auto; width: 100%; resize: vertical; line-height: 1.45; font-size: 12px; }
+  input[type="range"] { width: 100%; accent-color: var(--text); }
+
+  .btn {
+    height: 30px; padding: 0 12px; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    font-weight: 500; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .btn:hover { background: color-mix(in srgb, var(--text) 6%, var(--panel)); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn:disabled:hover { background: var(--panel); }
+  .btn.primary { background: var(--crab); border-color: var(--crab); color: var(--on-accent); font-weight: 600; }
+  .btn.primary:hover { background: color-mix(in srgb, var(--crab) 88%, var(--text)); }
+  .btn.danger { color: var(--blocked); border-color: color-mix(in srgb, var(--blocked) 45%, var(--line)); }
+  .btn.danger:hover { background: color-mix(in srgb, var(--blocked) 10%, var(--panel)); }
+  .btn.sm { height: 26px; padding: 0 9px; font-size: 12px; }
+  .btn.ghost { border-color: transparent; background: transparent; color: var(--dim); }
+  .btn.ghost:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+
+  /* ---------- stage ---------- */
+  .stage { grid-area: stage; position: relative; min-width: 0; min-height: 0; background: var(--ground); }
+  canvas { display: block; touch-action: none; cursor: crosshair; }
+  canvas:focus-visible { outline-offset: -2px; }
+  .hud-top { position: absolute; left: 12px; top: 12px; right: 12px; display: flex; gap: 8px; pointer-events: none; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: color-mix(in srgb, var(--panel) 90%, transparent);
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px;
+    font-size: 12px; color: var(--dim); pointer-events: auto; backdrop-filter: blur(4px);
+  }
+  .chip label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .chip input[type="checkbox"] { margin: 0; accent-color: var(--text); }
+  .chip select { height: 22px; padding: 0 4px; font-size: 12px; }
+  .hud-bottom {
+    position: absolute; left: 12px; right: 12px; bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; pointer-events: none;
+  }
+  .hud-bottom .readout { margin-left: auto; color: var(--text); }
+  .hud-bottom .readout span + span { margin-left: 12px; color: var(--dim); }
+
+  /* ---------- side panel ---------- */
+  .side {
+    grid-area: side; display: flex; flex-direction: column; min-height: 0;
+    border-left: 1px solid var(--line); background: var(--panel);
+  }
+  .tabs { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); padding: 0 8px; flex: none; }
+  .tab {
+    flex: 1; height: 42px; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    color: var(--dim); font-weight: 500; font-size: 13px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--crab); }
+  .badge {
+    min-width: 18px; height: 18px; border-radius: 9px; padding: 0 5px;
+    background: var(--warn); color: var(--on-accent);
+    font: 600 11px var(--mono); display: inline-flex; align-items: center; justify-content: center;
+  }
+  .badge[data-level="blocked"] { background: var(--blocked); color: #fff; }
+  .badge[data-level="good"] { background: var(--good); }
+  .badge:empty { display: none; }
+  #sheetToggle { display: none; }
+
+  .panel-body { overflow: auto; flex: 1; min-height: 0; padding: 4px 16px 24px; }
+  .sec { padding: 14px 0 16px; border-bottom: 1px solid var(--line); }
+  .sec:last-child { border-bottom: 0; }
+  .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .sec h2 { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+  .sec-head .meta { font-size: 12px; color: var(--dim); }
+
+  .f { display: grid; grid-template-columns: 62px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
+  .f input[type="number"] { width: 100%; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  .fields .wide { grid-column: 1 / -1; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .row.end { justify-content: flex-end; }
+  .row.gap-top { margin-top: 12px; }
+  .hint { font-size: 12.5px; color: var(--dim); }
+  .hint p + p { margin-top: 6px; }
+  .obj-title { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 10px; }
+  .obj-title .sw { width: 10px; height: 10px; border-radius: 2px; background: var(--text); flex: none; }
+  .obj-title .sw.round { border-radius: 50%; }
+  .obj-title .meta { font-weight: 400; color: var(--dim); font-size: 12px; margin-left: auto; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--inset); }
+  .seg button { border: 0; background: transparent; color: var(--dim); height: 28px; padding: 0 12px; font-weight: 500; font-size: 12.5px; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); }
+  .seg.blocked button[aria-pressed="true"] { color: var(--blocked); }
+
+  .arena-status { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: 600; }
+  .arena-status .state { font-weight: 500; font-size: 12px; color: var(--dim); font-family: var(--mono); }
+  .counts { font-size: 12.5px; color: var(--dim); margin-bottom: 12px; }
+
+  .check { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .check:last-child { border-bottom: 0; }
+  .check .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: var(--dim); }
+  .check[data-s="good"] .dot { background: var(--good); }
+  .check[data-s="warn"] .dot { background: var(--warn); }
+  .check[data-s="blocked"] .dot { background: var(--blocked); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blocked) 25%, transparent); }
+  .check h3 { font-size: 13px; font-weight: 600; }
+  .check p { margin-top: 2px; font-size: 12.5px; color: var(--dim); }
+  .check ul { margin-top: 6px; display: grid; gap: 3px; }
+  .check li { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px; }
+  .check li button { border: 0; background: none; padding: 0; color: var(--text); text-decoration: underline dotted; text-underline-offset: 3px; font: inherit; }
+  .check li button:hover { color: var(--cyan); }
+  .check li .tag { color: var(--dim); }
+  .check li[data-s="blocked"] .val { color: var(--blocked); font-weight: 600; }
+  .check li[data-s="warn"] .val { color: var(--warn); font-weight: 600; }
+  .legend { font-size: 12px; color: var(--dim); margin-top: 12px; }
+
+  .code-wrap { position: relative; background: var(--inset); border: 1px solid var(--line); border-radius: 6px; }
+  pre { margin: 0; padding: 12px; font: 12px/1.55 var(--mono); font-variant-numeric: tabular-nums; overflow: auto; max-height: 360px; white-space: pre; user-select: text; -webkit-user-select: text; color: var(--text); }
+  #copy { position: absolute; top: 8px; right: 8px; }
+  .msg { font-size: 12.5px; color: var(--dim); }
+  .msg[data-s="err"] { color: var(--blocked); }
+  .msg[data-s="ok"] { color: var(--good); }
+
+  /* ---------- modal & toast ---------- */
+  .modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--ground) 70%, transparent); z-index: 20; padding: 16px; }
+  .modal-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; max-width: 380px; width: 100%; box-shadow: 0 18px 50px rgba(0,0,0,.35); }
+  .modal-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .modal-card p { font-size: 13px; color: var(--dim); margin-bottom: 16px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(8px);
+    background: var(--text); color: var(--ground); font-size: 13px; font-weight: 500;
+    padding: 8px 14px; border-radius: 6px; opacity: 0; pointer-events: none; z-index: 30; max-width: calc(100vw - 32px);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (prefers-reduced-motion: no-preference) {
+    .toast { transition: opacity .18s ease, transform .18s ease; }
+    .tool, .btn, .tab { transition: background-color .12s ease, color .12s ease; }
+  }
+
+  /* ---------- narrow: panel becomes a bottom sheet ---------- */
+  @media (max-width: 820px) {
+    .app {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(160px, 1fr) auto;
+      grid-template-areas: "top" "stage" "side";
+    }
+    .top { padding: 6px 16px; gap: 10px; }
+    .brand strong { font-size: 14px; }
+    .tool span.lbl, .tool kbd { display: none; }
+    .tool { padding: 0 9px; }
+    .hist .lbl { display: none; }
+    .side { border-left: 0; border-top: 1px solid var(--line); height: 44vh; height: 44dvh; }
+    .side.expanded { height: 82vh; height: 82dvh; }
+    .side.collapsed { height: auto; }
+    .side.collapsed .panel-body { display: none; }
+    #sheetToggle { display: inline-flex; flex: none; width: 40px; justify-content: center; }
+    .hud-top .chip.hint-chip { display: none; }
+  }
+  @media (max-width: 480px) {
+    .top-right .size { display: none; }
+    .hud-bottom .readout span + span { display: none; }
+  }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <span class="eyebrow">Crab Team N</span>
+      <strong>Arena Editor</strong>
+    </div>
+
+    <div class="tools" role="toolbar" aria-label="Tools" id="tools">
+      <button class="tool" data-tool="select" aria-pressed="true" title="Select and move (V)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2l10 6-4.6 1.1L6.2 14z" fill="currentColor"/></svg><span class="lbl">Select</span><kbd>V</kbd>
+      </button>
+      <button class="tool" data-tool="wall" aria-pressed="false" title="Draw walls (W)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5l11-11" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg><span class="lbl">Wall</span><kbd>W</kbd>
+      </button>
+      <button class="tool" data-tool="block" aria-pressed="false" title="Place a movable block (B)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5.5 8h5M8.8 6.3L10.5 8l-1.7 1.7" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Block</span><kbd>B</kbd>
+      </button>
+      <button class="tool" data-tool="reward" aria-pressed="false" title="Place the reward (R)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.9 4.1 4.5.5-3.3 3 .9 4.4L8 11.3l-4 2.2.9-4.4-3.3-3 4.5-.5z" fill="currentColor"/></svg><span class="lbl">Reward</span><kbd>R</kbd>
+      </button>
+      <button class="tool" data-tool="start" aria-pressed="false" title="Place a crab start (S)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.5" cy="8" r="4.8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 8h8M12 5.5L14.5 8 12 10.5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Start</span><kbd>S</kbd>
+      </button>
+      <button class="tool" data-tool="pan" aria-pressed="false" title="Pan (H, or hold Space)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v13M1.5 8h13M5.5 4L8 1.5 10.5 4M5.5 12L8 14.5l2.5-2.5M4 5.5L1.5 8 4 10.5M12 5.5L14.5 8 12 10.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Pan</span><kbd>H</kbd>
+      </button>
+    </div>
+
+    <div class="top-right">
+      <label class="size">Arena
+        <input type="number" id="bw" min="0.5" max="60" step="0.1" aria-label="Arena width in metres">
+        <span>×</span>
+        <input type="number" id="bh" min="0.5" max="60" step="0.1" aria-label="Arena height in metres">
+        <span>m</span>
+      </label>
+      <div class="hist">
+        <button class="btn ghost sm" id="undo" title="Undo (Ctrl/⌘ Z)">↶ <span class="lbl">Undo</span></button>
+        <button class="btn ghost sm" id="redo" title="Redo (Ctrl/⌘ Shift Z)">↷ <span class="lbl">Redo</span></button>
+      </div>
+      <button class="btn primary" id="gotoExport">Export</button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="cv" tabindex="0" aria-label="Arena canvas. Draw walls, place blocks, reward and starts."></canvas>
+    <div class="hud-top">
+      <span class="chip hint-chip" id="hint"></span>
+    </div>
+    <div class="hud-bottom">
+      <span class="chip">
+        <label><input type="checkbox" id="snap" checked> Snap</label>
+        <select id="snapStep" aria-label="Snap step">
+          <option value="0.05">0.05 m</option>
+          <option value="0.1" selected>0.10 m</option>
+          <option value="0.25">0.25 m</option>
+          <option value="0.5">0.50 m</option>
+        </select>
+      </span>
+      <span class="chip">
+        <label><input type="checkbox" id="reach"> Reachable</label>
+        <button class="btn ghost sm" id="fit" title="Fit arena to view (F)">Fit</button>
+      </span>
+      <span class="chip readout mono"><span id="cur">x —.—  y —.—  m</span><span id="zoomro"></span></span>
+    </div>
+  </main>
+
+  <aside class="side" id="side">
+    <div class="tabs" role="tablist" aria-label="Panel">
+      <button class="tab" role="tab" data-tab="edit" aria-selected="true" id="tab-edit">Edit</button>
+      <button class="tab" role="tab" data-tab="check" aria-selected="false" id="tab-check">Check <span class="badge" id="badge"></span></button>
+      <button class="tab" role="tab" data-tab="export" aria-selected="false" id="tab-export">Export</button>
+      <button class="btn ghost sm" id="sheetToggle" aria-label="Collapse panel" aria-expanded="true">▾</button>
+    </div>
+    <div class="panel-body">
+
+      <section data-panel="edit" role="tabpanel" aria-labelledby="tab-edit">
+        <div class="sec">
+          <div class="sec-head"><h2>Selection</h2><span class="meta" id="selMeta"></span></div>
+          <div id="inspector"></div>
+        </div>
+        <div class="sec">
+          <div class="sec-head"><h2>Arena</h2></div>
+          <div class="arena-status">Race arena <span class="state" id="arenaState">(loaded)</span></div>
+          <div class="counts" id="counts"></div>
+          <div class="row">
+            <button class="btn sm" id="restore">Restore race arena</button>
+            <button class="btn sm" id="fitBounds">Fit bounds to walls</button>
+            <button class="btn sm danger" id="clear">Clear all</button>
+          </div>
+        </div>
+        <div class="sec hint">
+          <div class="sec-head"><h2>Keys</h2></div>
+          <p><kbd>W</kbd> wall run: click, click… <kbd>Esc</kbd> or right-click ends. <kbd>Shift</kbd> locks to an axis.</p>
+          <p><kbd>Del</kbd> removes the selection · <kbd>⌘Z</kbd> undo · <kbd>⇧⌘Z</kbd> redo · <kbd>G</kbd> snap · <kbd>F</kbd> fit · hold <kbd>Space</kbd> to pan · wheel zooms.</p>
+        </div>
+      </section>
+
+      <section data-panel="check" role="tabpanel" aria-labelledby="tab-check" hidden>
+        <div class="sec">
+          <div class="sec-head"><h2>Live checks</h2><span class="meta">chassis 0.18 m</span></div>
+          <div id="checks"></div>
+          <p class="legend">Tight &lt; 0.25 m · marginal &lt; 0.40 m · reachability tested with a 0.09 m robot radius on a 0.05 m grid. Checks advise; they never block export.</p>
+        </div>
+      </section>
+
+      <section data-panel="export" role="tabpanel" aria-labelledby="tab-export" hidden>
+        <div class="sec">
+          <div class="sec-head">
+            <h2>Export</h2>
+            <div class="seg" id="fmtSeg">
+              <button data-fmt="json" aria-pressed="true">JSON</button>
+              <button data-fmt="py" aria-pressed="false">Python</button>
+            </div>
+          </div>
+          <div class="code-wrap">
+            <button class="btn sm" id="copy">Copy</button>
+            <pre id="code" tabindex="0" aria-label="Exported arena"></pre>
+          </div>
+          <p class="hint" style="margin-top:8px" id="fmtHint"></p>
+        </div>
+        <div class="sec">
+          <div class="sec-head"><h2>Import</h2></div>
+          <textarea id="importText" rows="6" placeholder='Paste arena JSON: {"walls": [[x1,y1,x2,y2], …], "blocks": […], "reward": {…}, "starts": […], "bounds": {…}}' aria-label="Arena JSON to import"></textarea>
+          <div class="row gap-top">
+            <button class="btn sm" id="importBtn">Load JSON</button>
+            <span class="msg" id="importMsg">Replaces the current arena. Undo brings it back.</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </aside>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalBody">
+    <h3 id="modalTitle"></h3>
+    <p id="modalBody"></p>
+    <div class="row end">
+      <button class="btn" id="modalCancel">Cancel</button>
+      <button class="btn danger" id="modalOk">Confirm</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+// ---------- constants ----------
+const ROBOT_R = 0.09;          // half of the 0.18 m chassis
+const TIGHT = 0.25, MARGINAL = 0.40;
+const CELL = 0.05;             // reachability grid
+const BLOCK_R = 0.13, MAX_STARTS = 3;
+const STORE = 'crab-arena-editor:v1';
+const RACE = {
+  walls: [[0,0,2,0],[0,2.6,2,2.6],[0,0,0,2.6],[2,0,2,0.5],[2,1.1,2,1.5],[2,2.1,2,2.6],
+          [2,1.5,5,1.5],[2,2.1,5,2.1],[2,0.5,5,0.5],[2,1.1,5,1.1],
+          [5,0,7,0],[5,2.6,7,2.6],[7,0,7,2.6],[5,0,5,0.5],[5,1.1,5,1.5],[5,2.1,5,2.6]],
+  blocks: [{x:4.6, y:1.8, radius:0.13, weight:1}],
+  reward: {x:6.3, y:1.3},
+  starts: [{id:1, x:0.7, y:1.65, theta:0}, {id:2, x:0.7, y:0.95, theta:0}],
+  bounds: {w:7, h:2.6}
+};
+
+// ---------- helpers ----------
+const clone = o => JSON.parse(JSON.stringify(o));
+const r3 = n => Math.round(n * 1000) / 1000;
+const r4 = n => Math.round(n * 1e4) / 1e4;
+const num = n => String(r3(n) === 0 ? 0 : r3(n));           // shortest, "-0" safe
+const f2 = n => (Math.abs(n) < 5e-3 ? 0 : n).toFixed(2);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const hyp = Math.hypot;
+const deg = r => ((r * 180 / Math.PI) % 360 + 360) % 360;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- state ----------
+let state = clone(RACE);
+let view = { scale: 100, ox: 0, oy: 0 };
+let tool = 'select';
+let sel = null;                 // {type:'wall'|'block'|'reward'|'start', i}
+let snapOn = true, snapSize = 0.1, showReach = false;
+let hist = [], hidx = -1;
+let wallRun = null;             // [x,y] pending anchor of a wall chain
+let drag = null, pinch = null, spaceDown = false, lastEvt = null;
+const ptrs = new Map();
+const hover = { sx: 0, sy: 0, on: false };
+let val = null, valTimer = 0, fitted = false, modalOpen = false;
+let fmt = 'json';
+
+// ---------- canvas & tokens ----------
+const stage = $('#stage'), canvas = $('#cv'), ctx = canvas.getContext('2d');
+let cw = 0, ch = 0, dpr = 1;
+let C = {};
+function readTokens() {
+  const cs = getComputedStyle(document.documentElement);
+  const g = n => cs.getPropertyValue(n).trim();
+  C = { ground: g('--ground'), panel: g('--panel'), line: g('--line'), text: g('--text'), dim: g('--dim'),
+        crab: g('--crab'), cyan: g('--cyan'), crab3: g('--crab3'), good: g('--good'), warn: g('--warn'), blocked: g('--blocked') };
+}
+function rgba(hex, a) {
+  let h = (hex || '#888888').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const n = parseInt(h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+const idColor = id => id === 1 ? C.crab : id === 2 ? C.cyan : C.crab3;
+readTokens();
+const mq = matchMedia('(prefers-color-scheme: light)');
+if (mq.addEventListener) mq.addEventListener('change', () => { readTokens(); draw(); });
+new MutationObserver(() => { readTokens(); draw(); })
+  .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => draw());
+
+function resize() {
+  const r = stage.getBoundingClientRect();
+  cw = Math.max(1, r.width); ch = Math.max(1, r.height);
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+  canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
+  if (!fitted && cw > 10 && ch > 10) { fitted = true; fitView(); }
+  draw();
+}
+new ResizeObserver(resize).observe(stage);
+
+// ---------- view ----------
+const w2s = (x, y) => [view.ox + x * view.scale, view.oy - y * view.scale];
+const s2w = (sx, sy) => [(sx - view.ox) / view.scale, (view.oy - sy) / view.scale];
+function fitView() {
+  const pad = 56, hudB = 44, hudT = 40;
+  const b = state.bounds;
+  const s = clamp(Math.min((cw - 2 * pad) / Math.max(b.w, 0.1), (ch - hudT - hudB - 2 * pad) / Math.max(b.h, 0.1)), 8, 2000);
+  view.scale = s;
+  view.ox = (cw - b.w * s) / 2;
+  view.oy = hudT + (ch - hudT - hudB - b.h * s) / 2 + b.h * s;
+  draw(); zoomReadout();
+}
+function zoomAt(sx, sy, f) {
+  const ns = clamp(view.scale * f, 8, 2000);
+  const [wx, wy] = s2w(sx, sy);
+  view.scale = ns; view.ox = sx - wx * ns; view.oy = sy + wy * ns;
+  draw(); zoomReadout();
+}
+function centerOn(x, y) {
+  view.ox = cw / 2 - x * view.scale; view.oy = ch / 2 + y * view.scale; draw();
+}
+function zoomReadout() { $('#zoomro').textContent = Math.round(view.scale) + ' px/m'; }
+const pos = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+const sn = v => snapOn ? r4(Math.round(v / snapSize) * snapSize) : r4(v);
+const snapPt = (x, y) => [sn(x), sn(y)];
+function wallEnd(wx, wy, ax, ay, shift) {
+  const p = snapPt(wx, wy);
+  if (shift) { if (Math.abs(p[0] - ax) > Math.abs(p[1] - ay)) p[1] = ay; else p[0] = ax; }
+  return p;
+}
+
+// ---------- geometry ----------
+function pointSeg(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+  let t = L ? ((px - ax) * dx + (py - ay) * dy) / L : 0; t = clamp(t, 0, 1);
+  const x = ax + t * dx, y = ay + t * dy;
+  return { d: hyp(px - x, py - y), x, y };
+}
+const orient = (ax, ay, bx, by, cx, cy) => (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+function segsCross(a, b) {
+  const o1 = orient(a[0], a[1], a[2], a[3], b[0], b[1]), o2 = orient(a[0], a[1], a[2], a[3], b[2], b[3]);
+  const o3 = orient(b[0], b[1], b[2], b[3], a[0], a[1]), o4 = orient(b[0], b[1], b[2], b[3], a[2], a[3]);
+  return o1 * o2 < 0 && o3 * o4 < 0;
+}
+function segSeg(a, b) {
+  if (segsCross(a, b)) return { d: 0 };
+  let best = null;
+  const cands = [[a[0], a[1], b, true], [a[2], a[3], b, true], [b[0], b[1], a, false], [b[2], b[3], a, false]];
+  for (const [px, py, s, onA] of cands) {
+    const r = pointSeg(px, py, s[0], s[1], s[2], s[3]);
+    if (!best || r.d < best.d) best = { d: r.d, p: onA ? [px, py] : [r.x, r.y], q: onA ? [r.x, r.y] : [px, py] };
+  }
+  return best;
+}
+function nearestWall(x, y) {
+  let d = Infinity;
+  for (const w of state.walls) d = Math.min(d, pointSeg(x, y, w[0], w[1], w[2], w[3]).d);
+  return d;
+}
+
+// ---------- drawing ----------
+function draw() {
+  if (!cw || !ch) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cw, ch);
+  ctx.fillStyle = C.ground; ctx.fillRect(0, 0, cw, ch);
+  const S = view.scale, b = state.bounds;
+  const [bx0, by0] = w2s(0, b.h); const bw = b.w * S, bh = b.h * S;
+  const mono = (px, wt) => `${wt || 500} ${px}px "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+
+  // floor
+  ctx.fillStyle = C.panel; ctx.fillRect(bx0, by0, bw, bh);
+
+  // grid (clipped to arena)
+  ctx.save(); ctx.beginPath(); ctx.rect(bx0, by0, bw, bh); ctx.clip();
+  const minor = snapSize * S >= 9 ? snapSize : (0.5 * S >= 9 ? 0.5 : 0);
+  ctx.lineWidth = 1;
+  if (minor) {
+    ctx.strokeStyle = rgba(C.line, 0.75); ctx.beginPath();
+    for (let x = 0; x <= b.w + 1e-9; x = r4(x + minor)) { const sx = Math.round(view.ox + x * S) + 0.5; ctx.moveTo(sx, by0); ctx.lineTo(sx, by0 + bh); }
+    for (let y = 0; y <= b.h + 1e-9; y = r4(y + minor)) { const sy = Math.round(view.oy - y * S) + 0.5; ctx.moveTo(bx0, sy); ctx.lineTo(bx0 + bw, sy); }
+    ctx.stroke();
+  }
+  ctx.strokeStyle = rgba(C.dim, 0.35); ctx.beginPath();
+  for (let x = 0; x <= b.w + 1e-9; x += 1) { const sx = Math.round(view.ox + x * S) + 0.5; ctx.moveTo(sx, by0); ctx.lineTo(sx, by0 + bh); }
+  for (let y = 0; y <= b.h + 1e-9; y += 1) { const sy = Math.round(view.oy - y * S) + 0.5; ctx.moveTo(bx0, sy); ctx.lineTo(bx0 + bw, sy); }
+  ctx.stroke();
+
+  // reachability overlay
+  if (showReach && val && val.g) {
+    const g = val.g, cs = CELL * S;
+    for (let iy = 0; iy < g.ny; iy++) for (let ix = 0; ix < g.nx; ix++) {
+      const c = iy * g.nx + ix;
+      const wb = val.reachWB[c], w = val.reachW[c];
+      if (!wb && !w) continue;
+      ctx.fillStyle = wb ? rgba(C.cyan, 0.13) : rgba(C.warn, 0.14);
+      const [sx, sy] = w2s(ix * CELL, (iy + 1) * CELL);
+      ctx.fillRect(sx, sy, cs + 0.5, cs + 0.5);
+    }
+  }
+  ctx.restore();
+
+  // arena outline
+  ctx.strokeStyle = rgba(C.dim, 0.5); ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.strokeRect(bx0 + 0.5, by0 + 0.5, bw, bh); ctx.setLineDash([]);
+
+  // axis labels
+  ctx.fillStyle = C.dim; ctx.font = mono(10.5); ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+  const step = S >= 120 ? 0.5 : (S >= 30 ? 1 : (S >= 12 ? 2 : 5));
+  for (let x = 0; x <= b.w + 1e-9; x = r4(x + step)) ctx.fillText(num(x), view.ox + x * S, by0 + bh + 6);
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let y = 0; y <= b.h + 1e-9; y = r4(y + step)) ctx.fillText(num(y), bx0 - 7, view.oy - y * S);
+
+  // walls
+  const wallW = Math.max(2.5, 0.035 * S);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (sel && sel.type === 'wall' && state.walls[sel.i]) {
+    const w = state.walls[sel.i]; const [x1, y1] = w2s(w[0], w[1]), [x2, y2] = w2s(w[2], w[3]);
+    ctx.strokeStyle = rgba(C.cyan, 0.35); ctx.lineWidth = wallW + 10; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+  ctx.strokeStyle = C.text; ctx.lineWidth = wallW; ctx.beginPath();
+  for (const w of state.walls) { const [x1, y1] = w2s(w[0], w[1]), [x2, y2] = w2s(w[2], w[3]); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); }
+  ctx.stroke();
+  if (sel && sel.type === 'wall' && state.walls[sel.i]) {
+    const w = state.walls[sel.i];
+    for (const e of [0, 1]) { const [px, py] = w2s(w[e * 2], w[e * 2 + 1]); ctx.fillStyle = C.ground; ctx.strokeStyle = C.cyan; ctx.lineWidth = 2; ctx.beginPath(); ctx.rect(px - 5, py - 5, 10, 10); ctx.fill(); ctx.stroke(); }
+  }
+
+  // clearance markers
+  if (val && val.gaps) {
+    ctx.font = mono(10.5, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const gp of val.gaps) {
+      const col = gp.d < TIGHT ? C.blocked : C.warn;
+      const [x1, y1] = w2s(gp.p[0], gp.p[1]), [x2, y2] = w2s(gp.q[0], gp.q[1]);
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]);
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, label = gp.d.toFixed(2);
+      const tw = ctx.measureText(label).width + 8;
+      ctx.fillStyle = rgba(C.ground, 0.85); ctx.fillRect(mx - tw / 2, my - 8, tw, 16);
+      ctx.fillStyle = col; ctx.fillText(label, mx, my + 0.5);
+    }
+  }
+
+  // blocks
+  for (let i = 0; i < state.blocks.length; i++) {
+    const bk = state.blocks[i]; const [px, py] = w2s(bk.x, bk.y); const r = bk.radius * S;
+    ctx.fillStyle = rgba(C.blocked, 0.82); ctx.strokeStyle = C.blocked; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    if (bk.weight > 1) { ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(px, py, r + 5, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+    if (r >= 7) { ctx.fillStyle = C.ground; ctx.font = mono(Math.max(9, Math.min(13, r * 0.9)), 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('×' + bk.weight, px, py + 0.5); }
+    if (sel && sel.type === 'block' && sel.i === i) selRing(px, py, r + 7);
+  }
+
+  // reward
+  if (state.reward) {
+    const [px, py] = w2s(state.reward.x, state.reward.y);
+    const halo = Math.max(18, 0.32 * S);
+    const gr = ctx.createRadialGradient(px, py, 0.04 * S, px, py, halo);
+    gr.addColorStop(0, rgba(C.warn, 0.45)); gr.addColorStop(1, rgba(C.warn, 0));
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(px, py, halo, 0, Math.PI * 2); ctx.fill();
+    const r = Math.max(5, 0.07 * S);
+    ctx.fillStyle = C.warn; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.ground; ctx.beginPath();
+    ctx.moveTo(px, py - r * 0.55); ctx.lineTo(px + r * 0.55, py); ctx.lineTo(px, py + r * 0.55); ctx.lineTo(px - r * 0.55, py); ctx.closePath(); ctx.fill();
+    if (sel && sel.type === 'reward') selRing(px, py, r + 7);
+  }
+
+  // starts
+  for (let i = 0; i < state.starts.length; i++) {
+    const s = state.starts[i]; const col = idColor(s.id);
+    const [px, py] = w2s(s.x, s.y); const r = Math.max(6, ROBOT_R * S);
+    const cx = Math.cos(s.theta), cy = -Math.sin(s.theta);
+    ctx.fillStyle = rgba(col, 0.22); ctx.strokeStyle = col; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // heading nose
+    ctx.fillStyle = col; ctx.beginPath();
+    ctx.moveTo(px + cx * (r + 7), py + cy * (r + 7));
+    ctx.lineTo(px + cx * (r - 2) - cy * 5, py + cy * (r - 2) + cx * 5);
+    ctx.lineTo(px + cx * (r - 2) + cy * 5, py + cy * (r - 2) - cx * 5);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = col; ctx.font = mono(Math.max(10, Math.min(13, r)), 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(s.id), px, py + 0.5);
+    if (sel && sel.type === 'start' && sel.i === i) {
+      selRing(px, py, r + 7);
+      const hd = Math.max(r + 22, 0.26 * S);
+      const hx = px + cx * hd, hy = py + cy * hd;
+      ctx.strokeStyle = rgba(col, 0.6); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(px + cx * (r + 7), py + cy * (r + 7)); ctx.lineTo(hx, hy); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = col; ctx.strokeStyle = C.ground; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = C.dim; ctx.font = mono(10.5); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(Math.round(deg(s.theta)) + '°', hx + 10, hy);
+    }
+  }
+
+  // wall run preview
+  if (tool === 'wall') {
+    let a = null, end = null;
+    const [hwx, hwy] = s2w(hover.sx, hover.sy);
+    const shift = !!(lastEvt && lastEvt.shiftKey);
+    if (drag && drag.kind === 'wall') { a = [drag.ax, drag.ay]; end = wallEnd(hwx, hwy, a[0], a[1], shift); }
+    else if (wallRun) { a = wallRun; if (hover.on && !(lastEvt && lastEvt.pointerType === 'touch')) end = wallEnd(hwx, hwy, a[0], a[1], shift); }
+    if (a) {
+      const [ax, ay] = w2s(a[0], a[1]);
+      if (end && hyp(end[0] - a[0], end[1] - a[1]) > 1e-6) {
+        const [ex, ey] = w2s(end[0], end[1]);
+        ctx.strokeStyle = rgba(C.text, 0.7); ctx.lineWidth = wallW; ctx.setLineDash([6, 5]);
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ex, ey); ctx.stroke(); ctx.setLineDash([]);
+        const L = hyp(end[0] - a[0], end[1] - a[1]);
+        ctx.fillStyle = C.text; ctx.font = mono(11, 600); ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+        ctx.fillText(L.toFixed(2) + ' m', ex + 10, ey - 8);
+        ctx.fillStyle = C.ground; ctx.strokeStyle = C.text; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ex, ey, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+      ctx.fillStyle = C.text; ctx.beginPath(); ctx.arc(ax, ay, 4.5, 0, Math.PI * 2); ctx.fill();
+    } else if (hover.on && !drag && !(lastEvt && lastEvt.pointerType === 'touch')) {
+      const p = snapPt(hwx, hwy); const [px, py] = w2s(p[0], p[1]);
+      ctx.strokeStyle = rgba(C.text, 0.6); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.stroke();
+    }
+  } else if ((tool === 'block' || tool === 'reward' || tool === 'start') && hover.on && !drag && !(lastEvt && lastEvt.pointerType === 'touch')) {
+    const [hwx, hwy] = s2w(hover.sx, hover.sy); const p = snapPt(hwx, hwy); const [px, py] = w2s(p[0], p[1]);
+    const col = tool === 'block' ? C.blocked : tool === 'reward' ? C.warn : C.dim;
+    const r = tool === 'block' ? BLOCK_R * S : tool === 'start' ? Math.max(6, ROBOT_R * S) : Math.max(5, 0.07 * S);
+    ctx.strokeStyle = rgba(col, 0.7); ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // scale bar (bottom-left, above the HUD)
+  let barM = 1; if (S * barM > cw * 0.4) barM = 0.5; if (S * barM > cw * 0.4) barM = 0.1; if (S * barM < 40) barM = 2; if (S * barM < 40) barM = 5;
+  const bxs = 16, bys = ch - 58, bl = barM * S;
+  ctx.strokeStyle = C.text; ctx.lineWidth = 1.5; ctx.beginPath();
+  ctx.moveTo(bxs, bys - 5); ctx.lineTo(bxs, bys); ctx.lineTo(bxs + bl, bys); ctx.lineTo(bxs + bl, bys - 5); ctx.stroke();
+  ctx.fillStyle = C.text; ctx.font = mono(11, 500); ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  ctx.fillText(num(barM) + ' m', bxs, bys - 7);
+
+  function selRing(px, py, r) {
+    ctx.strokeStyle = C.cyan; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+
+// ---------- hit testing ----------
+function getObj(h) {
+  return h.type === 'wall' ? state.walls[h.i] : h.type === 'block' ? state.blocks[h.i] : h.type === 'reward' ? state.reward : state.starts[h.i];
+}
+function hitTest(sx, sy, tol) {
+  const S = view.scale;
+  if (sel && sel.type === 'start' && state.starts[sel.i]) {
+    const s = state.starts[sel.i]; const r = Math.max(6, ROBOT_R * S); const hd = Math.max(r + 22, 0.26 * S);
+    const [px, py] = w2s(s.x, s.y); const hx = px + Math.cos(s.theta) * hd, hy = py - Math.sin(s.theta) * hd;
+    if (hyp(sx - hx, sy - hy) < tol + 2) return { type: 'heading', i: sel.i };
+  }
+  if (sel && sel.type === 'wall' && state.walls[sel.i]) {
+    const w = state.walls[sel.i];
+    for (const e of [0, 1]) { const [px, py] = w2s(w[e * 2], w[e * 2 + 1]); if (hyp(sx - px, sy - py) < tol) return { type: 'endpoint', i: sel.i, end: e }; }
+  }
+  for (let i = state.starts.length - 1; i >= 0; i--) { const s = state.starts[i]; const [px, py] = w2s(s.x, s.y); if (hyp(sx - px, sy - py) < Math.max(tol, ROBOT_R * S)) return { type: 'start', i }; }
+  for (let i = state.blocks.length - 1; i >= 0; i--) { const b = state.blocks[i]; const [px, py] = w2s(b.x, b.y); if (hyp(sx - px, sy - py) < Math.max(tol, b.radius * S)) return { type: 'block', i }; }
+  if (state.reward) { const [px, py] = w2s(state.reward.x, state.reward.y); if (hyp(sx - px, sy - py) < Math.max(tol, 0.08 * S)) return { type: 'reward', i: 0 }; }
+  let best = null, bd = tol;
+  for (let i = state.walls.length - 1; i >= 0; i--) {
+    const w = state.walls[i]; const [x1, y1] = w2s(w[0], w[1]), [x2, y2] = w2s(w[2], w[3]);
+    const d = pointSeg(sx, sy, x1, y1, x2, y2).d; if (d < bd) { bd = d; best = { type: 'wall', i }; }
+  }
+  return best;
+}
+
+// ---------- pointer input ----------
+function setCursor(c) { canvas.style.cursor = c || (tool === 'select' ? 'default' : tool === 'pan' ? 'grab' : 'crosshair'); }
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', onDown);
+canvas.addEventListener('pointermove', onMove);
+canvas.addEventListener('pointerup', onUp);
+canvas.addEventListener('pointercancel', onUp);
+canvas.addEventListener('pointerleave', () => { hover.on = false; $('#cur').textContent = 'x —.—  y —.—  m'; draw(); });
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  const [sx, sy] = pos(e);
+  const f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0016));
+  zoomAt(sx, sy, f);
+}, { passive: false });
+
+function onDown(e) {
+  if (modalOpen) return;
+  canvas.focus({ preventScroll: true });
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  const [sx, sy] = pos(e); ptrs.set(e.pointerId, { sx, sy }); lastEvt = e;
+  if (ptrs.size === 2) {
+    if (drag && drag.kind === 'move') { state = JSON.parse(drag.before); }
+    drag = null;
+    const [a, b] = [...ptrs.values()];
+    pinch = { d: Math.max(1, hyp(a.sx - b.sx, a.sy - b.sy)), mx: (a.sx + b.sx) / 2, my: (a.sy + b.sy) / 2, scale: view.scale, ox: view.ox, oy: view.oy };
+    draw(); return;
+  }
+  if (ptrs.size > 2) return;
+  if (e.button === 2) {
+    if (wallRun || (drag && drag.kind === 'wall')) { wallRun = null; drag = null; updateHint(); }
+    else if (sel) { sel = null; renderInspector(); }
+    draw(); return;
+  }
+  if (e.button === 1 || spaceDown || tool === 'pan') { drag = { kind: 'pan', sx, sy, ox: view.ox, oy: view.oy }; setCursor('grabbing'); return; }
+  const tol = e.pointerType === 'touch' ? 20 : 10;
+  const [wx, wy] = s2w(sx, sy);
+  if (tool === 'wall') {
+    const a = wallRun || snapPt(wx, wy);
+    drag = { kind: 'wall', ax: a[0], ay: a[1], sx, sy, moved: false };
+    draw(); return;
+  }
+  const hit = hitTest(sx, sy, tol);
+  if (hit) {
+    const before = JSON.stringify(state);
+    if (hit.type === 'heading') { drag = { kind: 'heading', i: hit.i, before }; return; }
+    if (hit.type === 'endpoint') { drag = { kind: 'endpoint', i: hit.i, end: hit.end, before }; return; }
+    sel = { type: hit.type, i: hit.i }; renderInspector();
+    drag = { kind: 'move', type: hit.type, i: hit.i, wx, wy, orig: clone(getObj(hit)), before, moved: false };
+    setCursor('grabbing'); draw(); return;
+  }
+  const p = snapPt(wx, wy);
+  if (tool === 'select') { if (sel) { sel = null; renderInspector(); draw(); } return; }
+  if (tool === 'block') { state.blocks.push({ x: p[0], y: p[1], radius: BLOCK_R, weight: 1 }); sel = { type: 'block', i: state.blocks.length - 1 }; commit(); return; }
+  if (tool === 'reward') { state.reward = { x: p[0], y: p[1] }; sel = { type: 'reward', i: 0 }; commit(); return; }
+  if (tool === 'start') {
+    if (state.starts.length >= MAX_STARTS) { toast('Three starts already placed — drag one to move it.'); return; }
+    const id = [1, 2, 3].find(k => !state.starts.some(s => s.id === k));
+    state.starts.push({ id, x: p[0], y: p[1], theta: 0 }); sel = { type: 'start', i: state.starts.length - 1 }; commit();
+  }
+}
+function onMove(e) {
+  const [sx, sy] = pos(e); lastEvt = e;
+  if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { sx, sy });
+  hover.sx = sx; hover.sy = sy; hover.on = true;
+  const [wx, wy] = s2w(sx, sy);
+  $('#cur').textContent = `x ${wx.toFixed(2)}  y ${wy.toFixed(2)}  m`;
+  if (pinch && ptrs.size >= 2) {
+    const [a, b] = [...ptrs.values()];
+    const d = Math.max(1, hyp(a.sx - b.sx, a.sy - b.sy)), mx = (a.sx + b.sx) / 2, my = (a.sy + b.sy) / 2;
+    const ns = clamp(pinch.scale * d / pinch.d, 8, 2000);
+    const pwx = (pinch.mx - pinch.ox) / pinch.scale, pwy = (pinch.oy - pinch.my) / pinch.scale;
+    view.scale = ns; view.ox = mx - pwx * ns; view.oy = my + pwy * ns;
+    draw(); zoomReadout(); return;
+  }
+  if (!drag) {
+    if (tool === 'select') { const h = hitTest(sx, sy, 10); setCursor(h ? (h.type === 'heading' ? 'grab' : 'move') : ''); }
+    else draw();
+    return;
+  }
+  switch (drag.kind) {
+    case 'pan': view.ox = drag.ox + (sx - drag.sx); view.oy = drag.oy + (sy - drag.sy); draw(); return;
+    case 'wall': if (hyp(sx - drag.sx, sy - drag.sy) > 4) drag.moved = true; draw(); return;
+    case 'move': {
+      const dx = wx - drag.wx, dy = wy - drag.wy;
+      if (hyp(dx, dy) * view.scale > 3) drag.moved = true;
+      if (drag.moved) { applyMove(drag, dx, dy); draw(); syncInspector(); }
+      return;
+    }
+    case 'endpoint': { const p = snapPt(wx, wy); const w = state.walls[drag.i]; w[drag.end * 2] = p[0]; w[drag.end * 2 + 1] = p[1]; draw(); syncInspector(); return; }
+    case 'heading': {
+      const s = state.starts[drag.i]; let th = Math.atan2(wy - s.y, wx - s.x);
+      if (snapOn) th = Math.round(th / (Math.PI / 12)) * (Math.PI / 12);
+      if (th < 0) th += 2 * Math.PI; if (th >= 2 * Math.PI - 1e-9) th = 0;
+      s.theta = r4(th); draw(); syncInspector(); return;
+    }
+  }
+}
+function applyMove(d, dx, dy) {
+  if (d.type === 'wall') {
+    const o = d.orig; const nx1 = sn(o[0] + dx), ny1 = sn(o[1] + dy); const sdx = nx1 - o[0], sdy = ny1 - o[1];
+    state.walls[d.i] = [r4(o[0] + sdx), r4(o[1] + sdy), r4(o[2] + sdx), r4(o[3] + sdy)];
+  } else {
+    const o = d.orig, t = getObj(d); const p = snapPt(o.x + dx, o.y + dy); t.x = p[0]; t.y = p[1];
+  }
+}
+function onUp(e) {
+  ptrs.delete(e.pointerId);
+  try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+  if (pinch) { if (ptrs.size < 2) pinch = null; drag = null; setCursor(''); return; }
+  if (!drag) return;
+  const d = drag; drag = null; setCursor('');
+  const [sx, sy] = pos(e); const [wx, wy] = s2w(sx, sy);
+  switch (d.kind) {
+    case 'wall': {
+      const end = wallEnd(wx, wy, d.ax, d.ay, e.shiftKey);
+      const len = hyp(end[0] - d.ax, end[1] - d.ay);
+      if (len < 1e-6) {
+        if (wallRun && !d.moved) wallRun = null;          // clicking the anchor again ends the run
+        else wallRun = [d.ax, d.ay];                      // click sets the start of a run
+        updateHint(); draw();
+      } else {
+        state.walls.push([r4(d.ax), r4(d.ay), r4(end[0]), r4(end[1])]);
+        wallRun = [end[0], end[1]]; sel = null; commit();
+      }
+      break;
+    }
+    case 'move': if (d.moved && JSON.stringify(state) !== d.before) commit(); else draw(); break;
+    case 'endpoint':
+    case 'heading': if (JSON.stringify(state) !== d.before) commit(); else draw(); break;
+  }
+}
+
+// ---------- keyboard ----------
+window.addEventListener('keydown', e => {
+  const t = e.target;
+  const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+  const mod = e.metaKey || e.ctrlKey;
+  const k = e.key.toLowerCase();
+  if (mod && k === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && k === 'y' && !typing) { e.preventDefault(); redo(); return; }
+  if (e.key === 'Escape') {
+    if (modalOpen) { closeModal(); return; }
+    if (typing) { t.blur(); return; }
+    if (wallRun || drag) { wallRun = null; drag = null; } else sel = null;
+    updateHint(); renderInspector(); draw(); return;
+  }
+  if (typing || modalOpen || mod) return;
+  if (e.key === ' ') { if (!spaceDown) { spaceDown = true; setCursor('grab'); } e.preventDefault(); return; }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); deleteSel(); return; }
+  const map = { v: 'select', w: 'wall', b: 'block', r: 'reward', s: 'start', h: 'pan' };
+  if (map[k]) { setTool(map[k]); return; }
+  if (k === 'g') { $('#snap').checked = !snapOn; $('#snap').dispatchEvent(new Event('change')); return; }
+  if (k === 'f') { fitView(); }
+});
+window.addEventListener('keyup', e => { if (e.key === ' ') { spaceDown = false; setCursor(''); } });
+window.addEventListener('blur', () => { spaceDown = false; });
+
+// ---------- tools ----------
+function setTool(t) {
+  tool = t; wallRun = null;
+  $$('#tools .tool').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+  setCursor(''); updateHint(); draw();
+}
+$('#tools').addEventListener('click', e => { const b = e.target.closest('.tool'); if (b) setTool(b.dataset.tool); });
+function updateHint() {
+  const h = {
+    select: 'Drag to move · Delete removes · Space-drag pans',
+    wall: wallRun ? 'Click to chain the next segment · Esc or right-click ends the run' : 'Click or drag to lay a wall · Shift locks to an axis',
+    block: 'Click to drop a movable block · drag to move',
+    reward: state.reward ? 'Click to move the reward' : 'Click to place the reward',
+    start: state.starts.length < MAX_STARTS ? `Click to add a crab start (${state.starts.length}/3)` : '3 starts placed · drag to move',
+    pan: 'Drag to pan · wheel zooms'
+  };
+  $('#hint').textContent = h[tool];
+}
+function deleteSel() {
+  if (!sel) return;
+  if (sel.type === 'wall') state.walls.splice(sel.i, 1);
+  else if (sel.type === 'block') state.blocks.splice(sel.i, 1);
+  else if (sel.type === 'reward') state.reward = null;
+  else state.starts.splice(sel.i, 1);
+  sel = null; commit();
+}
+
+// ---------- history & persistence ----------
+function commit() {
+  hist.length = hidx + 1; hist.push(JSON.stringify(state));
+  if (hist.length > 150) hist.shift();
+  hidx = hist.length - 1;
+  save(); refreshUI(); draw();
+}
+function undo() { if (hidx > 0) { hidx--; state = JSON.parse(hist[hidx]); sel = null; wallRun = null; save(); refreshUI(); draw(); } }
+function redo() { if (hidx < hist.length - 1) { hidx++; state = JSON.parse(hist[hidx]); sel = null; wallRun = null; save(); refreshUI(); draw(); } }
+$('#undo').addEventListener('click', undo); $('#redo').addEventListener('click', redo);
+function save() { try { localStorage.setItem(STORE, JSON.stringify({ state, snapOn, snapSize, showReach })); } catch (_) {} }
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(STORE); if (!raw) return null;
+    const o = JSON.parse(raw); const st = normalize(o.state); if (typeof st === 'string') return null;
+    if (typeof o.snapOn === 'boolean') snapOn = o.snapOn;
+    if ([0.05, 0.1, 0.25, 0.5].includes(o.snapSize)) snapSize = o.snapSize;
+    if (typeof o.showReach === 'boolean') showReach = o.showReach;
+    return st;
+  } catch (_) { return null; }
+}
+
+// ---------- import / normalize ----------
+function normalize(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return 'Expected a JSON object with walls, blocks, reward, starts, bounds.';
+  const st = { walls: [], blocks: [], reward: null, starts: [], bounds: { w: 0, h: 0 } };
+  const fin = v => typeof v === 'number' && Number.isFinite(v);
+  if (o.walls != null) {
+    if (!Array.isArray(o.walls)) return '"walls" must be an array of [x1, y1, x2, y2].';
+    for (const w of o.walls) {
+      if (!Array.isArray(w) || w.length < 4 || !w.slice(0, 4).every(fin)) return 'Each wall must be four numbers: [x1, y1, x2, y2].';
+      st.walls.push(w.slice(0, 4).map(r4));
+    }
+  }
+  if (o.blocks != null) {
+    if (!Array.isArray(o.blocks)) return '"blocks" must be an array of {x, y, radius, weight}.';
+    for (const b of o.blocks) {
+      if (!b || !fin(b.x) || !fin(b.y)) return 'Each block needs numeric x and y.';
+      st.blocks.push({ x: r4(b.x), y: r4(b.y), radius: fin(b.radius) && b.radius > 0 ? r4(b.radius) : BLOCK_R, weight: b.weight === 2 || b.weight === '2' ? 2 : 1 });
+    }
+  }
+  if (o.reward != null) {
+    if (!fin(o.reward.x) || !fin(o.reward.y)) return '"reward" needs numeric x and y.';
+    st.reward = { x: r4(o.reward.x), y: r4(o.reward.y) };
+  }
+  if (o.starts != null) {
+    if (!Array.isArray(o.starts)) return '"starts" must be an array of {id, x, y, theta}.';
+    o.starts.slice(0, MAX_STARTS).forEach((s, i) => {
+      if (!s || !fin(s.x) || !fin(s.y)) throw Object.assign(new Error('Each start needs numeric x and y.'), { user: true });
+      let id = [1, 2, 3].includes(s.id) ? s.id : i + 1;
+      if (st.starts.some(q => q.id === id)) id = [1, 2, 3].find(k => !st.starts.some(q => q.id === k));
+      st.starts.push({ id, x: r4(s.x), y: r4(s.y), theta: fin(s.theta) ? r4(s.theta) : 0 });
+    });
+  }
+  if (o.bounds && fin(o.bounds.w) && fin(o.bounds.h) && o.bounds.w > 0 && o.bounds.h > 0) st.bounds = { w: r4(o.bounds.w), h: r4(o.bounds.h) };
+  else st.bounds = extentBounds(st);
+  return st;
+}
+function extentBounds(st) {
+  let mx = 0, my = 0;
+  for (const w of st.walls) { mx = Math.max(mx, w[0], w[2]); my = Math.max(my, w[1], w[3]); }
+  for (const b of st.blocks) { mx = Math.max(mx, b.x + b.radius); my = Math.max(my, b.y + b.radius); }
+  for (const s of st.starts) { mx = Math.max(mx, s.x + ROBOT_R); my = Math.max(my, s.y + ROBOT_R); }
+  if (st.reward) { mx = Math.max(mx, st.reward.x); my = Math.max(my, st.reward.y); }
+  return { w: Math.max(1, Math.ceil(mx * 10 - 1e-6) / 10), h: Math.max(1, Math.ceil(my * 10 - 1e-6) / 10) };
+}
+function importJSON(txt) {
+  let o;
+  try { o = JSON.parse(txt); } catch (e) { return 'Not valid JSON — ' + e.message; }
+  let st;
+  try { st = normalize(o); } catch (e) { return e.user ? e.message : 'Could not read that arena.'; }
+  if (typeof st === 'string') return st;
+  state = st; sel = null; wallRun = null; commit(); fitView();
+  return null;
+}
+$('#importBtn').addEventListener('click', () => {
+  const m = $('#importMsg'); const txt = $('#importText').value.trim();
+  if (!txt) { m.dataset.s = 'err'; m.textContent = 'Paste arena JSON first.'; return; }
+  const err = importJSON(txt);
+  if (err) { m.dataset.s = 'err'; m.textContent = err; }
+  else { m.dataset.s = 'ok'; m.textContent = `Loaded ${state.walls.length} walls, ${state.blocks.length} blocks, ${state.starts.length} starts.`; $('#importText').value = ''; }
+});
+
+// ---------- export ----------
+const arr = (items, indent) => items.length ? `[\n${items.join(',\n')}\n${indent}]` : '[]';
+function exportJSON() {
+  const w = state.walls.map(w => `    [${w.map(num).join(', ')}]`);
+  const b = state.blocks.map(b => `    {"x": ${num(b.x)}, "y": ${num(b.y)}, "radius": ${num(b.radius)}, "weight": ${b.weight}}`);
+  const s = state.starts.map(s => `    {"id": ${s.id}, "x": ${num(s.x)}, "y": ${num(s.y)}, "theta": ${num(s.theta)}}`);
+  const rw = state.reward ? `{"x": ${num(state.reward.x)}, "y": ${num(state.reward.y)}}` : 'null';
+  return `{\n  "walls": ${arr(w, '  ')},\n  "blocks": ${arr(b, '  ')},\n  "reward": ${rw},\n  "starts": ${arr(s, '  ')},\n  "bounds": {"w": ${num(state.bounds.w)}, "h": ${num(state.bounds.h)}}\n}`;
+}
+function exportPy() {
+  const L = [];
+  L.push(`# Arena Editor export — ${num(state.bounds.w)} x ${num(state.bounds.h)} m, origin bottom-left, +x right, +y up`);
+  L.push('def build():', '    a = Arena()', '    W = a.add_wall');
+  const ws = state.walls.map(w => `W(${w.map(num).join(', ')})`);
+  for (let i = 0; i < ws.length; i += 2) L.push('    ' + ws.slice(i, i + 2).join('; '));
+  if (!ws.length) L.push('    # no walls');
+  for (const b of state.blocks) L.push(`    a.add_block(${f2(b.x)}, ${f2(b.y)}, radius=${num(b.radius)})${b.weight > 1 ? '  # weight 2: one crab stalls, must call for help' : ''}`);
+  if (state.reward) L.push(`    a.add_species(${f2(state.reward.x)}, ${f2(state.reward.y)}, "gold")`);
+  else L.push('    # no reward placed');
+  L.push('    return a');
+  if (state.starts.length) {
+    L.push('', '', '# crab starts as (id, x, y, theta_rad) — spawn these outside Arena()');
+    L.push('STARTS = [' + state.starts.map(s => `(${s.id}, ${f2(s.x)}, ${f2(s.y)}, ${f2(s.theta)})`).join(', ') + ']');
+  }
+  return L.join('\n');
+}
+function renderExport() {
+  $('#code').textContent = fmt === 'json' ? exportJSON() : exportPy();
+  $('#fmtHint').textContent = fmt === 'json'
+    ? 'Metres, origin bottom-left. theta in radians. Paste back into Import to reopen.'
+    : 'Matches central/sim.py: Arena(), add_wall(x1, y1, x2, y2), add_block(x, y, radius=…), add_species(x, y, colour). Starts and weight 2 are comments — the sim API has no field for them.';
+}
+$('#fmtSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  fmt = b.dataset.fmt; $$('#fmtSeg button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); renderExport();
+});
+$('#copy').addEventListener('click', async () => {
+  const code = $('#code'); const text = code.textContent;
+  const selectAll = () => { const r = document.createRange(); r.selectNodeContents(code); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+  try { await navigator.clipboard.writeText(text); toast(`Copied ${fmt === 'json' ? 'JSON' : 'Python'} to clipboard`); return; } catch (_) {}
+  selectAll();
+  try { if (document.execCommand('copy')) { toast('Copied'); return; } } catch (_) {}
+  toast('Copy is blocked here — the text is selected, press ⌘C / Ctrl+C');
+});
+$('#gotoExport').addEventListener('click', () => { showTab('export'); $('#side').classList.remove('collapsed'); $('#code').focus({ preventScroll: true }); $('#code').scrollIntoView({ block: 'nearest' }); });
+
+// ---------- inspector ----------
+const insp = $('#inspector');
+function renderInspector() {
+  const meta = $('#selMeta');
+  if (sel && !getObj(sel)) sel = null;
+  if (!sel) {
+    meta.textContent = '';
+    insp.innerHTML = `<div class="hint"><p>Nothing selected. Click a wall, block, reward or start to edit it, or pick a tool above.</p><p>Walls are permanent; red blocks are what the crabs push.</p></div>`;
+    return;
+  }
+  let html = '';
+  const fld = (label, f, v, attrs) => `<label class="f"><span>${label}</span><input type="number" data-f="${f}" id="f-${f}" value="${v}" step="${attrs && attrs.step || 0.05}" ${attrs && attrs.min != null ? `min="${attrs.min}"` : ''} ${attrs && attrs.max != null ? `max="${attrs.max}"` : ''}></label>`;
+  if (sel.type === 'wall') {
+    const w = getObj(sel); const L = hyp(w[2] - w[0], w[3] - w[1]);
+    meta.textContent = `wall ${sel.i + 1} of ${state.walls.length}`;
+    html += `<div class="obj-title"><span class="sw"></span>Wall <span class="meta mono" id="wallLen">${L.toFixed(2)} m</span></div>`;
+    html += `<div class="fields">${fld('x1', 'x1', num(w[0]))}${fld('y1', 'y1', num(w[1]))}${fld('x2', 'x2', num(w[2]))}${fld('y2', 'y2', num(w[3]))}</div>`;
+  } else if (sel.type === 'block') {
+    const b = getObj(sel);
+    meta.textContent = `block ${sel.i + 1} of ${state.blocks.length}`;
+    html += `<div class="obj-title"><span class="sw round" style="background:var(--blocked)"></span>Movable block</div>`;
+    html += `<div class="fields">${fld('x', 'x', num(b.x))}${fld('y', 'y', num(b.y))}${fld('radius', 'radius', num(b.radius), { step: 0.01, min: 0.03, max: 1 })}
+      <div class="f"><span>crabs</span><div class="seg blocked" id="weightSeg"><button type="button" data-w="1" aria-pressed="${b.weight === 1}">1 crab</button><button type="button" data-w="2" aria-pressed="${b.weight === 2}">2 crabs</button></div></div></div>`;
+    html += `<p class="hint" style="margin-top:8px">${b.weight === 2 ? 'One crab alone stalls on this block and must call for help.' : 'One crab can push this block on its own.'}</p>`;
+  } else if (sel.type === 'reward') {
+    const r = state.reward;
+    meta.textContent = 'the goal';
+    html += `<div class="obj-title"><span class="sw round" style="background:var(--warn)"></span>Reward</div>`;
+    html += `<div class="fields">${fld('x', 'x', num(r.x))}${fld('y', 'y', num(r.y))}</div>`;
+  } else {
+    const s = getObj(sel);
+    meta.textContent = `${state.starts.length} of 3 starts`;
+    const opts = [1, 2, 3].map(k => `<option value="${k}" ${k === s.id ? 'selected' : ''} ${state.starts.some(q => q !== s && q.id === k) ? 'disabled' : ''}>crab ${k}</option>`).join('');
+    html += `<div class="obj-title"><span class="sw round" style="background:${idColor(s.id)}"></span>Crab start</div>`;
+    html += `<div class="fields">
+      <label class="f"><span>id</span><select data-f="id" id="f-id">${opts}</select></label>
+      ${fld('heading °', 'thetaDeg', Math.round(deg(s.theta)), { step: 5, min: 0, max: 360 })}
+      ${fld('x', 'x', num(s.x))}${fld('y', 'y', num(s.y))}
+      <div class="wide"><input type="range" data-f="thetaRange" id="f-thetaRange" min="0" max="359" step="1" value="${Math.round(deg(s.theta))}" aria-label="Heading in degrees"></div>
+    </div>`;
+  }
+  html += `<div class="row gap-top"><button class="btn sm danger" id="delSel">${sel.type === 'reward' ? 'Remove reward' : 'Delete'} <kbd>⌫</kbd></button><button class="btn sm ghost" id="deselect">Done <kbd>Esc</kbd></button></div>`;
+  insp.innerHTML = html;
+}
+function syncInspector() {
+  if (!sel || !getObj(sel)) return;
+  const set = (f, v) => { const el = insp.querySelector(`[data-f="${f}"]`); if (el && document.activeElement !== el) el.value = v; };
+  if (sel.type === 'wall') { const w = getObj(sel); set('x1', num(w[0])); set('y1', num(w[1])); set('x2', num(w[2])); set('y2', num(w[3])); const l = $('#wallLen'); if (l) l.textContent = hyp(w[2] - w[0], w[3] - w[1]).toFixed(2) + ' m'; }
+  else { const o = getObj(sel); set('x', num(o.x)); set('y', num(o.y)); if (sel.type === 'start') { set('thetaDeg', Math.round(deg(o.theta))); set('thetaRange', Math.round(deg(o.theta))); } }
+}
+function applyField(f, raw) {
+  const o = getObj(sel); const v = parseFloat(raw);
+  if (f === 'id') { o.id = parseInt(raw, 10); return; }
+  if (!Number.isFinite(v)) return;
+  if (sel.type === 'wall') { const k = { x1: 0, y1: 1, x2: 2, y2: 3 }[f]; if (k != null) o[k] = r4(v); return; }
+  if (f === 'x' || f === 'y') o[f] = r4(v);
+  else if (f === 'radius') o.radius = r4(clamp(v, 0.03, 1));
+  else if (f === 'thetaDeg' || f === 'thetaRange') o.theta = r4(((v % 360) + 360) % 360 * Math.PI / 180);
+}
+insp.addEventListener('change', e => { const f = e.target.dataset.f; if (!f || !sel) return; applyField(f, e.target.value); commit(); });
+insp.addEventListener('input', e => { const f = e.target.dataset.f; if (f === 'thetaRange' && sel) { applyField(f, e.target.value); syncInspector(); draw(); } });
+insp.addEventListener('click', e => {
+  const wb = e.target.closest('#weightSeg button');
+  if (wb && sel && sel.type === 'block') { getObj(sel).weight = parseInt(wb.dataset.w, 10); commit(); return; }
+  if (e.target.closest('#delSel')) deleteSel();
+  if (e.target.closest('#deselect')) { sel = null; renderInspector(); draw(); }
+});
+
+// ---------- arena section ----------
+function renderArena() {
+  const same = JSON.stringify(state) === JSON.stringify(RACE);
+  $('#arenaState').textContent = same ? '(loaded)' : '(modified)';
+  $('#counts').textContent = `${state.walls.length} walls · ${state.blocks.length} block${state.blocks.length === 1 ? '' : 's'} · ${state.reward ? '1 reward' : 'no reward'} · ${state.starts.length} start${state.starts.length === 1 ? '' : 's'}`;
+  $('#restore').disabled = same;
+  $('#bw').value = num(state.bounds.w); $('#bh').value = num(state.bounds.h);
+  $('#undo').disabled = hidx <= 0; $('#redo').disabled = hidx >= hist.length - 1;
+}
+$('#restore').addEventListener('click', () => confirmBox({
+  title: 'Restore the race arena?', body: 'Your current arena is replaced by the two-room race layout. Undo brings the current one back.', ok: 'Restore',
+  onOk: () => { state = clone(RACE); sel = null; wallRun = null; commit(); fitView(); toast('Race arena restored'); }
+}));
+$('#clear').addEventListener('click', () => confirmBox({
+  title: 'Clear the whole arena?', body: 'Removes every wall, block, start and the reward. Bounds stay. Undo brings it back.', ok: 'Clear all', danger: true,
+  onOk: () => { state = { walls: [], blocks: [], reward: null, starts: [], bounds: clone(state.bounds) }; sel = null; wallRun = null; commit(); toast('Arena cleared'); }
+}));
+$('#fitBounds').addEventListener('click', () => { state.bounds = extentBounds(state); commit(); fitView(); });
+for (const id of ['bw', 'bh']) $('#' + id).addEventListener('change', e => {
+  const v = parseFloat(e.target.value); if (!Number.isFinite(v)) { renderArena(); return; }
+  state.bounds[id === 'bw' ? 'w' : 'h'] = r4(clamp(v, 0.5, 60)); commit(); fitView();
+});
+
+// ---------- HUD controls ----------
+$('#snap').addEventListener('change', e => { snapOn = e.target.checked; save(); draw(); });
+$('#snapStep').addEventListener('change', e => { snapSize = parseFloat(e.target.value); save(); draw(); });
+$('#reach').addEventListener('change', e => { showReach = e.target.checked; save(); draw(); });
+$('#fit').addEventListener('click', fitView);
+
+// ---------- tabs / bottom sheet ----------
+function showTab(name) {
+  $$('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+  $$('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== name; });
+}
+$$('.tab').forEach(t => t.addEventListener('click', () => { showTab(t.dataset.tab); $('#side').classList.remove('collapsed'); $('#sheetToggle').setAttribute('aria-expanded', 'true'); $('#sheetToggle').textContent = '▾'; }));
+$('#sheetToggle').addEventListener('click', () => {
+  const side = $('#side'); const collapsed = side.classList.toggle('collapsed');
+  $('#sheetToggle').setAttribute('aria-expanded', String(!collapsed)); $('#sheetToggle').textContent = collapsed ? '▴' : '▾';
+});
+
+// ---------- confirm modal & toast ----------
+let modalReturn = null, modalCb = null;
+function confirmBox({ title, body, ok, danger, onOk }) {
+  $('#modalTitle').textContent = title; $('#modalBody').textContent = body;
+  const okb = $('#modalOk'); okb.textContent = ok || 'Confirm'; okb.className = 'btn ' + (danger ? 'danger' : 'primary');
+  modalCb = onOk; modalReturn = document.activeElement; modalOpen = true;
+  $('#modal').hidden = false; $('#modalCancel').focus();
+}
+function closeModal() { modalOpen = false; $('#modal').hidden = true; modalCb = null; if (modalReturn && modalReturn.focus) modalReturn.focus(); }
+$('#modalCancel').addEventListener('click', closeModal);
+$('#modalOk').addEventListener('click', () => { const cb = modalCb; closeModal(); if (cb) cb(); });
+$('#modal').addEventListener('click', e => { if (e.target === $('#modal')) closeModal(); });
+$('#modal').addEventListener('keydown', e => {   // keep Tab inside the two buttons
+  if (e.key !== 'Tab') return;
+  const a = $('#modalCancel'), b = $('#modalOk');
+  if (e.shiftKey && document.activeElement === a) { e.preventDefault(); b.focus(); }
+  else if (!e.shiftKey && document.activeElement === b) { e.preventDefault(); a.focus(); }
+});
+let toastT = 0;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
+
+// ---------- validation ----------
+function scheduleValidate() { clearTimeout(valTimer); valTimer = setTimeout(() => { val = validate(); renderChecks(); draw(); }, 60); }
+function validate() {
+  const res = { gaps: [], starts: [], blocks: [], g: null };
+  // 1. clearance between wall pairs
+  const W = state.walls;
+  for (let i = 0; i < W.length; i++) for (let j = i + 1; j < W.length; j++) {
+    const r = segSeg(W[i], W[j]);
+    if (r.d > 0.002 && r.d < MARGINAL) res.gaps.push({ i, j, d: r.d, p: r.p, q: r.q });
+  }
+  res.gaps.sort((a, b) => a.d - b.d);
+  // 2. grid
+  const b = state.bounds;
+  const nx = Math.max(1, Math.round(b.w / CELL)), ny = Math.max(1, Math.round(b.h / CELL));
+  if (nx * ny > 400000) { res.tooBig = true; return res; }
+  const wallM = new Uint8Array(nx * ny);
+  for (let iy = 0; iy < ny; iy++) { const y = (iy + 0.5) * CELL; for (let ix = 0; ix < nx; ix++) { const x = (ix + 0.5) * CELL;
+    for (const w of W) { if (pointSeg(x, y, w[0], w[1], w[2], w[3]).d < ROBOT_R) { wallM[iy * nx + ix] = 1; break; } } } }
+  const g = { nx, ny }; res.g = g;
+  const cellOf = (x, y) => { const ix = Math.floor(x / CELL), iy = Math.floor(y / CELL); return ix < 0 || iy < 0 || ix >= nx || iy >= ny ? -1 : iy * nx + ix; };
+  const blockCells = (bk, extra) => { const out = []; const R = bk.radius + ROBOT_R + (extra || 0);
+    const x0 = Math.max(0, Math.floor((bk.x - R) / CELL)), x1 = Math.min(nx - 1, Math.floor((bk.x + R) / CELL));
+    const y0 = Math.max(0, Math.floor((bk.y - R) / CELL)), y1 = Math.min(ny - 1, Math.floor((bk.y + R) / CELL));
+    for (let iy = y0; iy <= y1; iy++) for (let ix = x0; ix <= x1; ix++) if (hyp((ix + 0.5) * CELL - bk.x, (iy + 0.5) * CELL - bk.y) < R) out.push(iy * nx + ix);
+    return out; };
+  const bcells = state.blocks.map(bk => blockCells(bk));
+  const maskWith = exclude => { const m = new Uint8Array(wallM); state.blocks.forEach((bk, k) => { if (k !== exclude) for (const c of bcells[k]) m[c] = 1; }); return m; };
+  const flood = (blocked, sources) => {
+    const seen = new Uint8Array(nx * ny), q = new Int32Array(nx * ny); let h = 0, t = 0;
+    for (const s of sources) if (s >= 0 && !blocked[s] && !seen[s]) { seen[s] = 1; q[t++] = s; }
+    while (h < t) { const c = q[h++]; const x = c % nx;
+      const nb = [x > 0 ? c - 1 : -1, x < nx - 1 ? c + 1 : -1, c >= nx ? c - nx : -1, c + nx < nx * ny ? c + nx : -1];
+      for (const n of nb) if (n >= 0 && !seen[n] && !blocked[n]) { seen[n] = 1; q[t++] = n; } }
+    return seen;
+  };
+  const allM = maskWith(-1);
+  const rc = state.reward ? cellOf(state.reward.x, state.reward.y) : -1;
+  res.rewardOutside = !!state.reward && rc < 0;
+  res.rewardInWall = rc >= 0 && !!wallM[rc];
+  const srcs = [];
+  for (const s of state.starts) {
+    const c = cellOf(s.x, s.y); srcs.push(c);
+    const fw = flood(wallM, [c]), fb = flood(allM, [c]);
+    res.starts.push({ id: s.id, outside: c < 0, inWall: c >= 0 && !!wallM[c], wallDist: nearestWall(s.x, s.y),
+      wallsOnly: rc >= 0 && !!fw[rc], withBlocks: rc >= 0 && !!fb[rc] });
+  }
+  res.reachW = flood(wallM, srcs); res.reachWB = flood(allM, srcs);
+  state.blocks.forEach((bk, k) => {
+    const alt = flood(maskWith(k), srcs); const foot = new Set(blockCells(bk, CELL * 1.5)); let gained = 0;
+    for (let c = 0; c < nx * ny; c++) if (alt[c] && !res.reachWB[c] && !foot.has(c)) gained++;
+    res.blocks.push({ i: k, obstructs: gained > 3, gained });
+  });
+  return res;
+}
+function renderChecks() {
+  const v = val; if (!v) return;
+  const rows = [];
+  const at = (x, y) => `(${x.toFixed(2)}, ${y.toFixed(2)})`;
+  const crabs = ids => ids.map(i => 'crab ' + i).join(', ');
+  // clearance
+  const tight = v.gaps.filter(g => g.d < TIGHT), marg = v.gaps.filter(g => g.d >= TIGHT);
+  if (!v.gaps.length) rows.push({ s: 'good', h: 'Chassis clearance', p: 'Every gap between walls is 0.40 m or wider.' });
+  else {
+    const items = v.gaps.slice(0, 8).map(g => ({ s: g.d < TIGHT ? 'blocked' : 'warn', val: g.d.toFixed(2) + ' m', tag: g.d < TIGHT ? 'too tight' : 'marginal', x: (g.p[0] + g.q[0]) / 2, y: (g.p[1] + g.q[1]) / 2 }));
+    rows.push({ s: tight.length ? 'blocked' : 'warn', h: 'Chassis clearance',
+      p: tight.length ? `${tight.length} gap${tight.length > 1 ? 's' : ''} under 0.25 m — a 0.18 m crab wedges there${marg.length ? `; ${marg.length} more marginal` : ''}.`
+                      : `${marg.length} gap${marg.length > 1 ? 's' : ''} between 0.25 and 0.40 m — passable, no room for error.`, items });
+  }
+  // reachability
+  if (!state.reward) rows.push({ s: 'blocked', h: 'Reward reachable', p: 'No reward placed. Press R and click the goal.' });
+  else if (v.rewardOutside) rows.push({ s: 'blocked', h: 'Reward reachable', p: 'The reward sits outside the arena bounds.' });
+  else if (v.rewardInWall) rows.push({ s: 'blocked', h: 'Reward reachable', p: 'The reward sits inside a wall (closer than 0.09 m).' });
+  else if (!v.starts.length) rows.push({ s: 'warn', h: 'Reward reachable', p: 'No crab starts yet. Press S and click to add one.' });
+  else {
+    const bad = v.starts.filter(s => s.outside || s.inWall), un = v.starts.filter(s => !s.outside && !s.inWall && !s.wallsOnly), ok = v.starts.filter(s => s.wallsOnly);
+    if (un.length || bad.length) rows.push({ s: 'blocked', h: 'Reward reachable',
+      p: [un.length ? `Unreachable from ${crabs(un.map(s => s.id))} even with every block removed — walls seal it off.` : '',
+          bad.length ? `${crabs(bad.map(s => s.id))} start${bad.length > 1 ? '' : 's'} ${bad.some(s => s.outside) ? 'outside the bounds' : 'inside a wall'}.` : ''].filter(Boolean).join(' ') });
+    else rows.push({ s: 'good', h: 'Reward reachable', p: `Reachable from ${crabs(ok.map(s => s.id))} once blocks are out of the way.` });
+    // push needed?
+    const free = v.starts.filter(s => s.withBlocks), gated = v.starts.filter(s => s.wallsOnly && !s.withBlocks);
+    if (free.length) rows.push({ s: 'warn', h: 'Push required', p: `${crabs(free.map(s => s.id))} reach${free.length > 1 ? '' : 'es'} the reward without moving any block — the demo has no push.` });
+    else if (gated.length) rows.push({ s: 'good', h: 'Push required', p: `No start reaches the reward without moving a block — the run needs a push.` });
+  }
+  // blocks
+  if (!state.blocks.length) rows.push({ s: 'warn', h: 'Blocks obstruct', p: 'No movable block — nothing for the crabs to push.' });
+  else {
+    const idle = v.blocks.filter(b => !b.obstructs);
+    if (!idle.length) rows.push({ s: 'good', h: 'Blocks obstruct', p: `${state.blocks.length === 1 ? 'The block gates' : 'All ' + state.blocks.length + ' blocks gate'} space the crabs cannot otherwise reach.` });
+    else rows.push({ s: 'warn', h: 'Blocks obstruct', p: `${idle.length} of ${state.blocks.length} block${state.blocks.length > 1 ? 's' : ''} block${idle.length > 1 ? '' : 's'} nothing — crabs can drive around.`,
+      items: idle.map(b => { const bk = state.blocks[b.i]; return { s: 'warn', val: 'block', tag: 'no effect', x: bk.x, y: bk.y }; }) });
+  }
+  // starts clear of walls
+  if (state.starts.length) {
+    const hit = v.starts.filter(s => !s.outside && s.wallDist < ROBOT_R);
+    if (hit.length) rows.push({ s: 'warn', h: 'Starts clear of walls', p: `${crabs(hit.map(s => s.id))} overlap${hit.length > 1 ? '' : 's'} a wall at spawn.`,
+      items: hit.map(s => { const st = state.starts.find(q => q.id === s.id); return { s: 'warn', val: s.wallDist.toFixed(2) + ' m', tag: 'crab ' + s.id, x: st.x, y: st.y }; }) });
+    else rows.push({ s: 'good', h: 'Starts clear of walls', p: `${state.starts.length} start${state.starts.length > 1 ? 's' : ''} with room to spawn.` });
+  }
+  if (v.tooBig) rows.push({ s: 'warn', h: 'Reachability skipped', p: 'Arena too large for the 0.05 m grid — shrink the bounds.' });
+
+  $('#checks').innerHTML = rows.map(r => `<div class="check" data-s="${r.s}"><span class="dot"></span><div><h3>${esc(r.h)}</h3><p>${esc(r.p)}</p>${
+    r.items ? `<ul>${r.items.map(it => `<li data-s="${it.s}"><span class="val">${esc(it.val)}</span> <span class="tag">${esc(it.tag)}</span> · <button type="button" data-x="${it.x}" data-y="${it.y}">${at(it.x, it.y)}</button></li>`).join('')}</ul>` : ''}</div></div>`).join('');
+  const n = rows.filter(r => r.s !== 'good').length, worst = rows.some(r => r.s === 'blocked') ? 'blocked' : n ? 'warn' : 'good';
+  const bd = $('#badge'); bd.textContent = n ? String(n) : ''; bd.dataset.level = worst;
+}
+$('#checks').addEventListener('click', e => {
+  const b = e.target.closest('button[data-x]'); if (!b) return;
+  if (view.scale < 120) view.scale = 160;
+  centerOn(parseFloat(b.dataset.x), parseFloat(b.dataset.y)); zoomReadout();
+});
+
+// ---------- refresh & boot ----------
+function refreshUI() { updateHint(); renderInspector(); renderArena(); renderExport(); scheduleValidate(); }
+function boot(hotData) {
+  let st = null;
+  if (hotData && hotData.state) { const n = normalize(hotData.state); if (typeof n !== 'string') { st = n; if (hotData.view) { view = hotData.view; fitted = true; } if (hotData.tool) tool = hotData.tool; } }
+  if (!st) st = loadSaved();
+  state = st || clone(RACE);
+  $('#snap').checked = snapOn; $('#snapStep').value = String(snapSize); $('#reach').checked = showReach;
+  hist = [JSON.stringify(state)]; hidx = 0;
+  setTool(tool); refreshUI(); resize(); zoomReadout();
+}
+try {
+  const hot = window.claude && window.claude.hot;
+  if (hot && typeof hot.snapshot === 'function') hot.snapshot(() => ({ state, view, tool }));
+  if (hot && typeof hot.ready === 'function') hot.ready(d => boot(d || {})); else boot((hot && hot.data) || null);
+} catch (_) { boot(null); }
+})();
+</script>

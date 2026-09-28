@@ -1,0 +1,29 @@
+{
+  "a": {
+    "video": "v7373",
+    "candidates": 338,
+    "kept": 85,
+    "sharp_median_all": 162.11718012282086,
+    "sharp_median_picked": 184.56269630093647,
+    "sharp_p10_all": 64.96618312319045,
+    "sharp_p10_picked": 91.66710257785485
+  },
+  "b": {
+    "video": "v7374",
+    "candidates": 160,
+    "kept": 40,
+    "sharp_median_all": 144.0511307201672,
+    "sharp_median_picked": 187.71926144490578,
+    "sharp_p10_all": 15.291224417799963,
+    "sharp_p10_picked": 45.85690769179943
+  },
+  "c": {
+    "video": "v7375",
+    "candidates": 232,
+    "kept": 58,
+    "sharp_median_all": 155.30605839254144,
+    "sharp_median_picked": 231.2860972759901,
+    "sharp_p10_all": 39.61291362202544,
+    "sharp_p10_picked": 78.07257360247372
+  }
+}

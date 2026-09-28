@@ -1,0 +1,727 @@
+<title>Corridor Point Cloud</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* ---- tokens: bare :root is the light "survey chart" theme ---- */
+  :root {
+    --ground: #EEF3F2;
+    --panel:  #FFFFFF;
+    --line:   #D3DFDE;
+    --text:   #16262B;
+    --dim:    #5B7078;
+    --crab:   #C4501F;
+    --cyan:   #1D8A8A;
+    --good:   #2F8F5B;
+    --panel-glass: rgba(255, 255, 255, 0.92);
+    --shadow: 0 12px 32px rgba(22, 38, 43, 0.14);
+    --sans: "IBM Plex Sans", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0A1317;
+      --panel:  #111D22;
+      --line:   #1C2C33;
+      --text:   #DCE7EA;
+      --dim:    #7C929A;
+      --crab:   #F0703C;
+      --cyan:   #4FC4C4;
+      --good:   #64C08C;
+      --panel-glass: rgba(17, 29, 34, 0.9);
+      --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0A1317;
+    --panel:  #111D22;
+    --line:   #1C2C33;
+    --text:   #DCE7EA;
+    --dim:    #7C929A;
+    --crab:   #F0703C;
+    --cyan:   #4FC4C4;
+    --good:   #64C08C;
+    --panel-glass: rgba(17, 29, 34, 0.9);
+    --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.4;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  /* ---- app frame ---- */
+  .app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+
+  .bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px 28px;
+    flex-wrap: wrap;
+    padding-block: 10px;
+    padding-inline: 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .brand { min-width: 0; flex: 1 1 260px; }
+  .brand h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    line-height: 1.2;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  }
+  .brand h1 .eyebrow { font-weight: 500; }
+  .thesis { margin: 2px 0 0; color: var(--dim); font-size: 12.5px; text-wrap: balance; }
+  .thesis em { font-style: normal; color: var(--text); }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0; padding: 0; }
+  .stats div { display: flex; flex-direction: column; gap: 1px; }
+  .stats dt { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+  .stats dd { margin: 0; font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stats dd .unit { color: var(--dim); font-size: 11px; margin-left: 2px; }
+  .stats dd.flag { color: var(--cyan); }
+
+  .stage { position: relative; flex: 1 1 auto; min-height: 0; }
+  canvas#view {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: grab;
+    outline-offset: -3px;
+  }
+  canvas#view.dragging { cursor: grabbing; }
+
+  .hint {
+    position: absolute; top: 12px; right: 16px;
+    display: flex; gap: 14px;
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    pointer-events: none;
+    letter-spacing: 0.02em;
+  }
+  .hint b { font-weight: 500; color: var(--text); }
+
+  /* ---- floating control panel ---- */
+  .panel {
+    position: absolute; left: 16px; bottom: 16px;
+    width: 312px; max-width: calc(100% - 32px);
+    background: var(--panel);
+    background: var(--panel-glass);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px 10px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .panel[data-collapsed="true"] .panel-head { border-bottom-color: transparent; }
+  .panel-head .fps { margin-left: auto; display: flex; align-items: baseline; gap: 8px; }
+  .panel-head .fps .num { font-size: 15px; font-weight: 500; color: var(--cyan); min-width: 3ch; text-align: right; }
+  .iconbtn {
+    width: 26px; height: 26px; border-radius: 4px;
+    border: 1px solid var(--line); background: transparent; color: var(--dim);
+    display: grid; place-items: center; cursor: pointer; padding: 0;
+  }
+  .iconbtn:hover { color: var(--text); }
+  .iconbtn svg { transition: transform 200ms; }
+  .panel[data-collapsed="true"] .iconbtn svg { transform: rotate(180deg); }
+
+  .panel-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 14px; }
+
+  .seg { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .seg legend { padding: 0; margin-bottom: 6px; }
+  .seg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .seg-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .seg button {
+    font: inherit; color: var(--text);
+    background: transparent; border: 1px solid var(--line); border-radius: 4px;
+    padding: 8px 10px; text-align: left; cursor: pointer;
+    display: flex; flex-direction: column; gap: 2px;
+    transition: border-color 120ms, background-color 120ms;
+  }
+  .seg button:hover { border-color: var(--dim); }
+  .seg button .t { font-weight: 500; font-size: 13px; }
+  .seg button .n { font-size: 11px; color: var(--dim); }
+  .seg button[aria-checked="true"] {
+    border-color: var(--crab);
+    box-shadow: inset 0 0 0 1px var(--crab);
+  }
+  .seg button[aria-checked="true"] .t { color: var(--crab); }
+  .seg button[aria-busy="true"] { cursor: progress; }
+  .desc { margin: 0; font-size: 12px; color: var(--dim); }
+  .desc strong { color: var(--text); font-weight: 500; }
+
+  .progress { display: flex; flex-direction: column; gap: 5px; }
+  .progress .meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); }
+  .progress .track { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .progress .fill { height: 100%; width: 0; background: var(--cyan); transition: width 160ms linear; }
+  .error { margin: 0; font-size: 12px; color: var(--crab); }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field .lab { display: flex; justify-content: space-between; align-items: baseline; }
+  .field .lab output { font-size: 12px; color: var(--text); }
+  input[type="range"] {
+    width: 100%; margin: 0; height: 22px; background: transparent; cursor: pointer;
+    -webkit-appearance: none; appearance: none;
+  }
+  input[type="range"]::-webkit-slider-runnable-track { height: 3px; background: var(--line); border-radius: 2px; }
+  input[type="range"]::-moz-range-track { height: 3px; background: var(--line); border-radius: 2px; }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; margin-top: -5.5px; border-radius: 50%;
+    background: var(--cyan); border: 2px solid var(--panel);
+    box-shadow: 0 0 0 1px var(--cyan);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--cyan); border: 2px solid var(--panel);
+    box-shadow: 0 0 0 1px var(--cyan);
+  }
+
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .switch { position: relative; display: inline-flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; user-select: none; }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+  .switch .track {
+    width: 32px; height: 18px; border-radius: 9px; position: relative;
+    background: var(--line); border: 1px solid var(--line); transition: background-color 150ms;
+  }
+  .switch .track::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--dim); transition: transform 150ms, background-color 150ms;
+  }
+  .switch input:checked + .track { background: var(--cyan); border-color: var(--cyan); }
+  .switch input:checked + .track::after { transform: translateX(14px); background: var(--panel); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .btn {
+    font: inherit; font-size: 12.5px; font-weight: 500; color: var(--text);
+    background: transparent; border: 1px solid var(--line); border-radius: 4px;
+    padding: 6px 11px; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--dim); }
+
+  .caveat {
+    margin: 0; padding-top: 12px; border-top: 1px solid var(--line);
+    font-size: 11.5px; color: var(--dim); line-height: 1.45;
+  }
+  .caveat .eyebrow { display: block; margin-bottom: 3px; color: var(--cyan); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .iconbtn svg, .seg button, .switch .track, .switch .track::after, .progress .fill { transition: none; }
+  }
+
+  /* ---- narrow: panel becomes a bottom strip ---- */
+  @media (max-width: 700px) {
+    .bar { gap: 8px 16px; }
+    .stats { gap: 4px 16px; }
+    .stats div.opt { display: none; }
+    .hint { display: none; }
+    .panel {
+      left: 0; right: 0; bottom: 0; width: auto; max-width: none;
+      border-radius: 8px 8px 0 0; border-bottom: 0;
+      max-height: 46%;
+      display: flex; flex-direction: column;
+    }
+    .panel-body { overflow-y: auto; min-height: 0; padding-inline: 16px; }
+    .panel-head { padding-inline: 16px 12px; }
+  }
+  @media (max-width: 420px) {
+    .seg-row, .seg-row-3 { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <h1><span class="eyebrow">Crab Team N</span> Corridor Point Cloud</h1>
+      <p class="thesis"><em>A world from multiple visions.</em> Cheap ESP32-CAM robots build one shared 3D world. This corridor: real phone video through Depth Anything V2.</p>
+    </div>
+    <dl class="stats">
+      <div><dt>depth inference</dt><dd>92 ms<span class="unit">/frame · 10.9 fps</span></dd></div>
+      <div><dt>sustained, 8-frame run</dt><dd>7.6 fps</dd></div>
+      <div class="opt"><dt>model</dt><dd>DA-V2 Small · 24.8M · 95 MB</dd></div>
+      <div><dt>scale</dt><dd class="flag">arbitrary</dd></div>
+    </dl>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="view" tabindex="0" aria-label="3D corridor point cloud. Drag to orbit, scroll to zoom, shift-drag to pan. Arrow keys orbit, plus and minus zoom, R resets."></canvas>
+
+    <div class="hint" aria-hidden="true">
+      <span><b>drag</b> orbit</span>
+      <span><b>wheel</b> zoom</span>
+      <span><b>shift-drag</b> pan</span>
+    </div>
+
+    <aside class="panel" id="panel" data-collapsed="false" aria-label="Viewer controls">
+      <div class="panel-head">
+        <span class="eyebrow">Viewer</span>
+        <span class="fps" title="Frame rate of this page's render loop, not the depth model">
+          <span class="eyebrow">render fps · this page</span>
+          <span class="num" id="fps" aria-live="off">—</span>
+        </span>
+        <button class="iconbtn" id="collapse" type="button" aria-expanded="true" aria-controls="panel-body" aria-label="Collapse controls">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4.5l4 4 4-4"/></svg>
+        </button>
+      </div>
+
+      <div class="panel-body" id="panel-body">
+        <fieldset class="seg">
+          <legend class="eyebrow">Camera source</legend>
+          <div class="seg-row seg-row-3" role="radiogroup" aria-label="Camera source">
+            <button type="button" role="radio" aria-checked="true" id="src-fixed" data-cloud="fixed">
+              <span class="t">Solved · SfM</span>
+              <span class="n num">95,000 pts · 40 frames</span>
+            </button>
+            <button type="button" role="radio" aria-checked="false" id="src-qvga" data-cloud="qvga">
+              <span class="t">QVGA · robot</span>
+              <span class="n num">63,104 pts · 8 frames</span>
+            </button>
+            <button type="button" role="radio" aria-checked="false" id="src-hires" data-cloud="hires">
+              <span class="t">Hi-res · phone</span>
+              <span class="n num">130,000 pts · 1 frame</span>
+            </button>
+          </div>
+        </fieldset>
+        <p class="desc" id="cloud-desc"><strong>Every frame placed where the camera actually was.</strong> COLMAP solved the 124 camera poses; its sparse points then anchor each depth map to one shared frame. 14.4 m long, 4.7 wide, 3.1 tall — a corridor, not a blob.</p>
+        <p class="desc" hidden><strong>What the robots will see.</strong> Source video degraded to 320×240 at JPEG quality 12 — exactly what an ESP32-CAM produces — then 8 frames stitched. It still reconstructs.</p>
+
+        <div class="progress" id="progress" hidden>
+          <div class="meta num"><span id="progress-label">Loading hi-res cloud · 2.60 MB</span><span id="progress-pct">0%</span></div>
+          <div class="track"><div class="fill" id="progress-fill"></div></div>
+        </div>
+        <p class="error" id="load-error" hidden></p>
+
+        <div class="field">
+          <div class="lab">
+            <label class="eyebrow" for="psize">Point size</label>
+            <output class="num" id="psize-out" for="psize">35 mm</output>
+          </div>
+          <input type="range" id="psize" min="0.006" max="0.09" step="0.001" value="0.035">
+        </div>
+
+        <div class="row">
+          <label class="switch" for="auto">
+            <input type="checkbox" id="auto" checked>
+            <span class="track" aria-hidden="true"></span>
+            Auto-orbit
+          </label>
+          <button class="btn" type="button" id="reset">Reset view</button>
+        </div>
+
+        <p class="caveat">
+          <span class="eyebrow">Not a measurement</span>
+          Scale is arbitrary: the nearest surface is pinned to 0.5 m. Field of view is assumed at 60°. Distances here are model guesses, not measurements.
+        </p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="cloud_fixed.js"></script>
+<script src="cloud_qvga.js"></script>
+<script>
+(function () {
+  'use strict';
+  var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- DOM ---------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $('view'), stage = $('stage');
+  var fpsEl = $('fps'), descEl = $('cloud-desc');
+  var progress = $('progress'), progressFill = $('progress-fill'), progressPct = $('progress-pct');
+  var loadError = $('load-error');
+  var sizeInput = $('psize'), sizeOut = $('psize-out');
+  var autoInput = $('auto'), resetBtn = $('reset');
+  var srcButtons = [$('src-qvga'), $('src-hires')];
+
+  var DESC = {
+    fixed: '<strong>Every frame placed where the camera actually was.</strong> COLMAP solved the 124 camera poses; its sparse points then anchor each depth map to one shared frame. 14.4 m long, 4.7 wide, 3.1 tall — a corridor, not a blob.',
+    qvga: '<strong>What the robots will see.</strong> Source video degraded to 320×240 at JPEG quality 12 — exactly what an ESP32-CAM produces — then 8 frames stitched. It still reconstructs.',
+    hires: '<strong>The phone, for comparison.</strong> One single frame of the original 1080×1920 video. Denser and prettier, but one viewpoint only — nothing the robots can produce.'
+  };
+  /* default point size per cloud: roughly the sample spacing at the median depth */
+  var DEFAULT_SIZE = { fixed: 0.022, qvga: 0.035, hires: 0.018 };
+
+  /* ---------- renderer / scene ---------- */
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(50, 1, 0.05, 200);
+  /* Data is in camera convention (x right, y DOWN, z forward). One half-turn about x
+     gives three.js y-up; the corridor then recedes toward -z. */
+  var root = new THREE.Group();
+  root.rotation.x = Math.PI;
+  scene.add(root);
+
+  function readToken(name, fallback) {
+    var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  }
+  function applyTheme() {
+    renderer.setClearColor(new THREE.Color(readToken('--ground', '#0A1317')), 1);
+  }
+  applyTheme();
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+  new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  /* round point sprite */
+  var disc = (function () {
+    var c = document.createElement('canvas'); c.width = c.height = 32;
+    var g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(16, 16, 15, 0, Math.PI * 2); g.fill();
+    var t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearFilter; return t;
+  })();
+
+  function b64ToBytes(s) {
+    var bin = atob(s), n = bin.length, u8 = new Uint8Array(n);
+    for (var i = 0; i < n; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+  function buildPoints(data, size) {
+    var posBytes = b64ToBytes(data.pos);             /* fresh buffer, offset 0: aligned */
+    var pos = new Float32Array(posBytes.buffer, 0, data.n * 3);
+    var col = b64ToBytes(data.col);
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3, true));
+    geo.computeBoundingSphere();
+    var mat = new THREE.PointsMaterial({ size: size, vertexColors: true, sizeAttenuation: true, map: disc, alphaTest: 0.5 });
+    var pts = new THREE.Points(geo, mat);
+    pts.frustumCulled = false;
+    return pts;
+  }
+
+  /* The solved cloud is exported already y-up, so it must NOT get root's
+     pi-about-x flip -- that flip exists to turn the camera convention
+     (y down, z forward) of the depth-shell clouds into world up. */
+  var upright = new THREE.Group();
+  scene.add(upright);
+
+  var clouds = { fixed: null, qvga: null, hires: null };
+  var active = 'fixed';
+
+  clouds.fixed = buildPoints(window.CLOUD_FIXED, DEFAULT_SIZE.fixed);
+  upright.add(clouds.fixed);
+
+  /* The camera path, drawn as a line. Seeing where the phone actually went
+     is half the point: the geometry is thin exactly where it walked straight. */
+  var pathBytes = b64ToBytes(window.CLOUD_FIXED.path);
+  var pathGeo = new THREE.BufferGeometry();
+  pathGeo.setAttribute('position', new THREE.BufferAttribute(
+    new Float32Array(pathBytes.buffer, 0, window.CLOUD_FIXED.npath * 3), 3));
+  var pathLine = new THREE.Line(pathGeo, new THREE.LineBasicMaterial({ color: 0xF0703C }));
+  pathLine.frustumCulled = false;
+  upright.add(pathLine);
+
+  clouds.qvga = buildPoints(window.CLOUD_QVGA, DEFAULT_SIZE.qvga);
+  clouds.qvga.visible = false;
+  root.add(clouds.qvga);
+
+  /* ---------- camera controls (hand-rolled orbit) ---------- */
+  /* Home view: a little above and to the right of the source viewpoint, looking down the
+     corridor so the walls converge. Chosen from the data: dense body z in [-2.2, 4],
+     source camera at z ~ +2.7 after the flip. */
+  /* Framed from the data, not guessed. After the pi-about-x rotation the
+     corridor runs along z: 96% of the points sit between z -7.1 and +2.1,
+     the dense body between -1.5 and +3, and the cloud is only about 1.8 m
+     wide in x. So the readable view is from just behind the near end,
+     slightly above eye height, looking straight down the corridor axis.
+     An oblique angle turns the same data into an edge-on smear. */
+  var HOME = { tx: 0.0, ty: 0.0, tz: -2.0, theta: 0.0, phi: Math.PI / 2 - 0.10, radius: 15.5 };
+  var ctl = { target: new THREE.Vector3(), theta: 0, phi: 0, radius: 1, vTheta: 0, vPhi: 0 };
+  var PHI_MIN = 0.12, PHI_MAX = Math.PI - 0.12, R_MIN = 0.6, R_MAX = 40;
+
+  function goHome() {
+    ctl.target.set(HOME.tx, HOME.ty, HOME.tz);
+    ctl.theta = HOME.theta; ctl.phi = HOME.phi; ctl.radius = HOME.radius;
+    ctl.vTheta = 0; ctl.vPhi = 0;
+  }
+  function applyCamera() {
+    ctl.phi = Math.min(PHI_MAX, Math.max(PHI_MIN, ctl.phi));
+    ctl.radius = Math.min(R_MAX, Math.max(R_MIN, ctl.radius));
+    var s = Math.sin(ctl.phi);
+    camera.position.set(
+      ctl.target.x + ctl.radius * s * Math.sin(ctl.theta),
+      ctl.target.y + ctl.radius * Math.cos(ctl.phi),
+      ctl.target.z + ctl.radius * s * Math.cos(ctl.theta)
+    );
+    camera.lookAt(ctl.target);
+  }
+  goHome();
+
+  var ROT_SPEED = 2 * Math.PI;   /* radians per canvas-height of drag */
+  var pointers = new Map();
+  var dragMode = null;           /* 'orbit' | 'pan' */
+  var lastX = 0, lastY = 0, pinchDist = 0;
+  var _right = new THREE.Vector3(), _up = new THREE.Vector3();
+
+  function pan(dx, dy) {
+    var h = canvas.clientHeight || 1;
+    var worldPerPx = 2 * ctl.radius * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / h;
+    _right.setFromMatrixColumn(camera.matrix, 0);
+    _up.setFromMatrixColumn(camera.matrix, 1);
+    ctl.target.addScaledVector(_right, -dx * worldPerPx);
+    ctl.target.addScaledVector(_up, dy * worldPerPx);
+  }
+  function orbit(dx, dy) {
+    var h = canvas.clientHeight || 1;
+    var dT = -ROT_SPEED * dx / h, dP = -ROT_SPEED * dy / h;
+    ctl.theta += dT; ctl.phi += dP;
+    ctl.vTheta = REDUCED ? 0 : dT; ctl.vPhi = REDUCED ? 0 : dP;
+  }
+  function dolly(factor) { ctl.radius *= factor; }
+
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  canvas.addEventListener('pointerdown', function (e) {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) {
+      dragMode = (e.button === 2 || e.shiftKey) ? 'pan' : 'orbit';
+      lastX = e.clientX; lastY = e.clientY;
+      ctl.vTheta = 0; ctl.vPhi = 0;
+      canvas.classList.add('dragging');
+    } else if (pointers.size === 2) {
+      var p = Array.from(pointers.values());
+      pinchDist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      lastX = (p[0].x + p[1].x) / 2; lastY = (p[0].y + p[1].y) / 2;
+      dragMode = 'pinch';
+    }
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1 && dragMode !== 'pinch') {
+      var dx = e.clientX - lastX, dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      if (dragMode === 'pan' || e.shiftKey) pan(dx, dy); else orbit(dx, dy);
+    } else if (pointers.size === 2) {
+      var p = Array.from(pointers.values());
+      var d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      var cx = (p[0].x + p[1].x) / 2, cy = (p[0].y + p[1].y) / 2;
+      if (pinchDist > 0) dolly(pinchDist / d);
+      pan(cx - lastX, cy - lastY);
+      pinchDist = d; lastX = cx; lastY = cy;
+    }
+  });
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (pointers.size === 0) { dragMode = null; canvas.classList.remove('dragging'); }
+    else if (pointers.size === 1) {
+      var p = Array.from(pointers.values())[0];
+      lastX = p.x; lastY = p.y; dragMode = 'orbit'; pinchDist = 0;
+    }
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var d = e.deltaY;
+    if (e.deltaMode === 1) d *= 16; else if (e.deltaMode === 2) d *= 200;
+    dolly(Math.exp(d * 0.0012));
+  }, { passive: false });
+
+  canvas.addEventListener('keydown', function (e) {
+    var step = 0.06;
+    switch (e.key) {
+      case 'ArrowLeft':  ctl.theta += step; break;
+      case 'ArrowRight': ctl.theta -= step; break;
+      case 'ArrowUp':    ctl.phi -= step; break;
+      case 'ArrowDown':  ctl.phi += step; break;
+      case '+': case '=': dolly(0.9); break;
+      case '-': case '_': dolly(1 / 0.9); break;
+      case 'r': case 'R': goHome(); break;
+      default: return;
+    }
+    e.preventDefault();
+  });
+
+  /* ---------- resize ---------- */
+  function resize() {
+    var w = stage.clientWidth, h = stage.clientHeight;
+    if (!w || !h) return;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+  window.addEventListener('resize', resize);
+  resize();
+
+  /* ---------- auto-orbit: a slow sweep, not a full circle ----------
+     Every cloud here is a depth shell seen from one place (the source video only pans),
+     so it is hollow from behind. A pendulum sweep keeps the corridor always readable. */
+  var autoOn = !REDUCED;
+  autoInput.checked = autoOn;
+  autoInput.addEventListener('change', function () { autoOn = autoInput.checked; });
+  var SWEEP_A = 0.30, SWEEP_W = 2 * Math.PI / 34, sweepT = 0;
+
+  /* ---------- render loop + fps ---------- */
+  var lastT = performance.now(), fpsT = lastT, fpsN = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    var dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+
+    if (autoOn && !dragMode) {
+      sweepT += dt;
+      ctl.theta += SWEEP_A * SWEEP_W * Math.cos(SWEEP_W * sweepT) * dt;
+    }
+    if (!dragMode && !REDUCED) {
+      var k = Math.exp(-dt * 5.5);           /* frame-rate independent decay */
+      ctl.vTheta *= k; ctl.vPhi *= k;
+      if (Math.abs(ctl.vTheta) < 1e-5) ctl.vTheta = 0;
+      if (Math.abs(ctl.vPhi) < 1e-5) ctl.vPhi = 0;
+      ctl.theta += ctl.vTheta; ctl.phi += ctl.vPhi;
+    }
+    applyCamera();
+    renderer.render(scene, camera);
+
+    fpsN++;
+    if (now - fpsT >= 500) {
+      fpsEl.textContent = Math.round(fpsN * 1000 / (now - fpsT));
+      fpsN = 0; fpsT = now;
+    }
+  }
+  requestAnimationFrame(frame);
+
+  /* ---------- controls: size, reset, collapse ---------- */
+  function fmtSize(m) { return Math.round(m * 1000) + ' mm'; }
+  function setSize(m) {
+    sizeInput.value = m; sizeOut.value = fmtSize(m);
+    if (clouds[active]) clouds[active].material.size = m;
+  }
+  sizeInput.addEventListener('input', function () { setSize(parseFloat(sizeInput.value)); });
+  setSize(DEFAULT_SIZE[active]);
+  resetBtn.addEventListener('click', function () { goHome(); canvas.focus({ preventScroll: true }); });
+
+  var panel = $('panel'), collapseBtn = $('collapse'), panelBody = $('panel-body');
+  collapseBtn.addEventListener('click', function () {
+    var collapsed = panel.getAttribute('data-collapsed') !== 'true';
+    panel.setAttribute('data-collapsed', String(collapsed));
+    panelBody.hidden = collapsed;
+    collapseBtn.setAttribute('aria-expanded', String(!collapsed));
+    collapseBtn.setAttribute('aria-label', collapsed ? 'Expand controls' : 'Collapse controls');
+  });
+
+  /* ---------- cloud switching + lazy hi-res ---------- */
+  var hiresState = 'idle';   /* idle | loading | ready | error */
+  var progTimer = null, progStart = 0;
+
+  function showCloud(name) {
+    active = name;
+    Object.keys(clouds).forEach(function (k) { if (clouds[k]) clouds[k].visible = (k === name); });
+    pathLine.visible = (name === 'fixed');
+    srcButtons.forEach(function (b) { b.setAttribute('aria-checked', String(b.dataset.cloud === name)); });
+    descEl.innerHTML = DESC[name];
+    setSize(DEFAULT_SIZE[name]);
+  }
+
+  function startProgress() {
+    progress.hidden = false; loadError.hidden = true;
+    progStart = performance.now();
+    progressFill.style.width = '0%'; progressPct.textContent = '0%';
+    clearInterval(progTimer);
+    progTimer = setInterval(function () {
+      /* a script tag gives no byte progress; this eases toward 90% on the expected transfer time */
+      var t = (performance.now() - progStart) / 1000;
+      var p = Math.min(90, Math.round(100 * (1 - Math.exp(-t / 2.2))));
+      progressFill.style.width = p + '%'; progressPct.textContent = p + '%';
+    }, 120);
+  }
+  function finishProgress(ok) {
+    clearInterval(progTimer);
+    if (ok) {
+      progressFill.style.width = '100%'; progressPct.textContent = '100%';
+      setTimeout(function () { progress.hidden = true; }, REDUCED ? 0 : 350);
+    } else {
+      progress.hidden = true;
+    }
+  }
+
+  function requestHires() {
+    if (hiresState === 'ready') { showCloud('hires'); return; }
+    if (hiresState === 'loading') return;
+    hiresState = 'loading';
+    var hiresBtn = document.getElementById('src-hires');
+    hiresBtn.setAttribute('aria-busy', 'true');
+    startProgress();
+    var s = document.createElement('script');
+    s.src = 'cloud_hires.js';
+    s.async = true;
+    s.onload = function () {
+      /* let the bar reach its end before the ~100 ms decode */
+      setTimeout(function () {
+        try {
+          if (!window.CLOUD_HIRES) throw new Error('CLOUD_HIRES missing');
+          clouds.hires = buildPoints(window.CLOUD_HIRES, DEFAULT_SIZE.hires);
+          clouds.hires.visible = false;
+          root.add(clouds.hires);
+          hiresState = 'ready';
+          hiresBtn.removeAttribute('aria-busy');
+          finishProgress(true);
+          showCloud('hires');
+        } catch (err) { fail(err); }
+      }, 30);
+    };
+    s.onerror = function () { fail(new Error('network')); };
+    function fail(err) {
+      hiresState = 'error';
+      hiresBtn.removeAttribute('aria-busy');
+      finishProgress(false);
+      loadError.textContent = 'Could not load cloud_hires.js (2.60 MB). Check the connection, then pick Hi-res again.';
+      loadError.hidden = false;
+      showCloud('qvga');
+      if (window.console) console.warn('hi-res load failed', err);
+    }
+    document.head.appendChild(s);
+  }
+
+  srcButtons.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var name = b.dataset.cloud;
+      if (name === active) return;
+      if (name === 'hires') { if (hiresState === 'error') hiresState = 'idle'; requestHires(); }
+      else showCloud(name);
+    });
+  });
+  /* radiogroup arrow-key navigation */
+  srcButtons.forEach(function (b, i) {
+    b.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        var next = srcButtons[(i + 1) % srcButtons.length];
+        next.focus(); next.click();
+      }
+    });
+  });
+})();
+</script>

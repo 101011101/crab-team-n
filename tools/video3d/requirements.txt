@@ -1,0 +1,22 @@
+# reconstruct.py ONLY. Install into tools/video3d/.venv, never into
+# central/.venv: this list unpacks to about 1 GB and the control loop has to
+# stay installable on a laptop at the venue.
+#
+# feasibility.py deliberately needs none of it. It runs in central/.venv on
+# opencv-python and numpy alone, which is what makes it usable as the cheap
+# gate in front of this file.
+#
+# Measured on macOS 27 / Apple Silicon, 2026-09-19:
+#   install      31 s from a warm pip cache, plus 9 s for torchvision
+#   .venv        1.0 GB on disk
+#   weights      95 MB, fetched once to ~/.cache/huggingface
+#
+# torchvision is not optional. transformers imports it inside
+# AutoImageProcessor and fails at import time without it.
+
+torch>=2.2
+torchvision>=0.17
+transformers>=4.40
+pillow>=10
+numpy>=1.26
+opencv-python>=4.9
